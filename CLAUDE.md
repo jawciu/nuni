@@ -58,6 +58,12 @@ Optional: `NUNI_IMAGE_MODEL` (default `gpt-image-1-mini`), `NUNI_MODEL` (default
   repeat comes out twice the size on the legs.
 - **One warm sandbox, not many.** GPU concurrency on this account is capped at one, so
   `create` reuses a running box rather than failing.
+- **Placement is per garment, repeat is shared.** Height is measured against each garment's
+  own length, so one shared number meant chest on the cropped tee and ankle on the trousers.
+  Repeat stays shared because it is quoted in centimetres and normalised by texel density.
+- **Control and param paths are checked against an allow-list.** The agent invented
+  `trews.placement.height` unprompted, which would have produced a slider that moved and
+  changed nothing. It is now told the target is unknown and asked again.
 
 ## Traps, all paid for once already
 
@@ -82,6 +88,14 @@ Optional: `NUNI_IMAGE_MODEL` (default `gpt-image-1-mini`), `NUNI_MODEL` (default
 
 ### 2026-08-30 — built
 
-Repo created, app built end to end, deployed to Vercel. Viewer, both print mechanics, the
-agent loop, generation, and GPU isolation all working and exercised. Screenshots of each
-milestone in `shots/` (gitignored).
+Repo created and the app built end to end. Working and exercised: the viewer, both print
+mechanics, per-garment placement, colourway, the agent loop with six tools, generation
+(transparent, ~35s), and GPU isolation (~3s round trip). Screenshots of every milestone in
+`shots/` (gitignored); grab a fresh one with `shots/grab.sh`.
+
+Vercel project is linked and all three keys are set on it, but **nothing is deployed yet** —
+Caroline asked to work locally first.
+
+Two Daytona tier limits worth raising with them: snapshot creation returns 403 on this key
+(so a cold sandbox costs ~2 minutes instead of ~5 seconds, which only matters for recovery),
+and GPU concurrency is capped at 1 (so no parallel fan-out, and no two users at once).
