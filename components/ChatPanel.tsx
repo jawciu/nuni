@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { warmSandbox } from "@/lib/sandbox-client";
-import { ControlSpec } from "@/lib/types";
+import { CONTROL_TARGETS, ControlSpec, isControlTarget } from "@/lib/types";
 import { Controls } from "./Controls";
 
 type Block =
@@ -45,15 +45,31 @@ export function ChatPanel() {
       const { mode, targets, ...paths } = input as Record<string, never>;
       if (mode) s.setParams({ mode: mode as never });
       if (targets) s.setParams({ targets: targets as never });
+      const bad: string[] = [];
       for (const [k, v] of Object.entries(paths)) {
-        if (typeof v === "number") s.setAt(k, v);
+        if (typeof v !== "number") continue;
+        if (!isControlTarget(k)) {
+          bad.push(k);
+          continue;
+        }
+        s.setAt(k, v);
       }
-      return { ok: true };
+      if (bad.length) {
+        return { ok: false, unknownParams: bad, valid: CONTROL_TARGETS };
+      }
+      return { ok: true, targets: useStore.getState().params.targets };
     }
 
     if (name === "add_controls") {
-      s.addControls((input.controls ?? []) as ControlSpec[]);
-      return { ok: true, shown: (input.controls as ControlSpec[]).map((c) => c.label) };
+      const asked = (input.controls ?? []) as ControlSpec[];
+      const good = asked.filter((c) => isControlTarget(c.target));
+      const bad = asked.filter((c) => !isControlTarget(c.target)).map((c) => c.target);
+      if (good.length) s.addControls(good);
+      if (bad.length) {
+        // a slider bound to a path that does not exist would move and change nothing
+        return { ok: false, unknownTargets: bad, valid: CONTROL_TARGETS, shown: good.map((c) => c.label) };
+      }
+      return { ok: true, shown: good.map((c) => c.label) };
     }
 
     if (name === "set_colours") {

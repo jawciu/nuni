@@ -193,15 +193,16 @@ export function Garment({
 
   useEffect(() => {
     const u = uniforms.current;
+    const place = params.placement[id];
     (u.uCloth.value as THREE.Color).set(params.colours[id]);
     const on = !!printTex && params.targets.includes(id);
     u.uHasPrint.value = on ? 1 : 0;
     u.uPrint.value = printTex;
     u.uMode.value = params.mode === "repeat" ? 1 : 0;
-    u.uAcross.value = params.placement.across;
-    u.uHeight.value = params.placement.height;
-    u.uSize.value = Math.max(0.02, params.placement.size);
-    u.uRot.value = (params.placement.rotation * Math.PI) / 180;
+    u.uAcross.value = place.across;
+    u.uHeight.value = place.height;
+    u.uSize.value = Math.max(0.02, place.size);
+    u.uRot.value = (place.rotation * Math.PI) / 180;
     u.uRepeatRot.value = (params.repeat.rotation * Math.PI) / 180;
     u.uRepeatOffset.value.set(params.repeat.offsetX, params.repeat.offsetY);
     // tiles across the UV square for a motif `scale` centimetres wide

@@ -48,23 +48,39 @@ When they say they want to play with something, adjust it, or explore a range, c
 add_controls and the slider appears under the chat. Build the control they asked for, not a
 panel of everything. Two or three at once is plenty. If they ask for one thing, give one.
 
+**Placement is per garment**, because height is measured against that garment's own length.
+The same 0.15 is the hem of a cropped tee and the ankle of a trouser, so each garment carries
+its own numbers. Write \`tee\` or \`trews\` into the path.
+
 Control targets, and their sensible ranges:
-- \`placement.across\`   -1 (left) to 1 (right), step 0.01
-- \`placement.height\`   0 (hem) to 1 (shoulder), step 0.01. It is measured against that
-  garment's own height, so chest on the cropped tee is around 0.45 and 0.8 is already at the
-  neckline. Move it in steps of 0.06 or so, not 0.2.
-- \`placement.size\`     0.05 to 1.2, as a fraction of the garment's width, step 0.01
-- \`placement.rotation\` -180 to 180 degrees, step 1
+- \`placement.<garment>.across\`   -1 (left) to 1 (right), step 0.01
+- \`placement.<garment>.height\`   0 (hem) to 1 (shoulder or waistband), step 0.01
+- \`placement.<garment>.size\`     0.05 to 1.2, as a fraction of that garment's width, step 0.01
+- \`placement.<garment>.rotation\` -180 to 180 degrees, step 1
 - \`repeat.scale\`       2 to 60 centimetres per tile, step 0.5
 - \`repeat.rotation\`    -180 to 180 degrees, step 1
 - \`repeat.offsetX\`     0 to 1, step 0.01
 - \`repeat.offsetY\`     0 to 1, step 0.01
 
+Repeat has no per-garment form. It is quoted in real centimetres and normalised by each
+mesh's texel density, so a 14cm repeat is 14cm on both.
+
+**Useful heights.** On the cropped \`tee\`: 0.46 is mid chest, 0.8 is already at the neckline.
+On the \`trews\`: 0.62 is thigh, 0.85 is hip, 0.15 is ankle. Move in steps of about 0.06.
+When a control is for one of two targeted garments, say which in the label: "size on the tee".
+
 When they ask for a direct change rather than a control ("bigger", "move it left", "put it on
 the trousers too"), call set_params and just do it. Reach for set_params and add_controls
 together when they want the change now and the dial afterwards.
 
-Garments are \`tee\` and \`trews\`. Default is the tee alone.
+## Garments
+
+\`tee\` and \`trews\`, default the tee alone. **\`targets\` replaces the list, it does not add
+to it**, so "put it on the trousers too" is \`["tee","trews"]\` and "move it to the trousers"
+is \`["trews"]\`. Read the sentence carefully, this is easy to get backwards.
+
+The paths listed above are the only ones that exist. A slider bound to anything else would
+move and change nothing, so use them exactly, garment name included.
 
 ## The cloth
 
@@ -82,10 +98,14 @@ export const TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: {
         mode: { type: "string", enum: ["placed", "repeat"] },
-        "placement.across": { type: "number" },
-        "placement.height": { type: "number" },
-        "placement.size": { type: "number" },
-        "placement.rotation": { type: "number" },
+        "placement.tee.across": { type: "number" },
+        "placement.tee.height": { type: "number" },
+        "placement.tee.size": { type: "number" },
+        "placement.tee.rotation": { type: "number" },
+        "placement.trews.across": { type: "number" },
+        "placement.trews.height": { type: "number" },
+        "placement.trews.size": { type: "number" },
+        "placement.trews.rotation": { type: "number" },
         "repeat.scale": { type: "number" },
         "repeat.rotation": { type: "number" },
         "repeat.offsetX": { type: "number" },
