@@ -111,7 +111,7 @@ export function Controls() {
   if (!controls.length) return null;
   return (
     <div
-      className="nuni-controls pointer-events-auto absolute right-5 bottom-5 z-20 w-[278px] select-none rounded-xl border border-white/10 bg-[rgba(13,12,11,0.72)] px-4 pt-3.5 pb-4 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] backdrop-blur-md"
+      className="nuni-controls pointer-events-auto absolute bottom-5 left-5 z-20 w-[278px] max-w-[calc(100%-2.5rem)] xl:left-auto xl:right-5 select-none rounded-xl border border-white/10 bg-[rgba(13,12,11,0.72)] px-4 pt-3.5 pb-4 shadow-[0_18px_50px_-18px_rgba(0,0,0,0.9)] backdrop-blur-md"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

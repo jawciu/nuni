@@ -45,7 +45,7 @@ export function Options() {
 
   return (
     <div
-      className="pointer-events-auto absolute bottom-5 left-5 z-20 flex max-w-[calc(100%-330px)] flex-col items-start gap-2.5 select-none"
+      className="pointer-events-auto absolute bottom-5 right-5 z-20 flex max-w-[calc(100%-2.5rem)] flex-col items-end gap-2.5 select-none xl:right-auto xl:left-5 xl:max-w-[calc(100%-330px)] xl:items-start"
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >

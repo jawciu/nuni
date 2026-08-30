@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import {
   OrbitControls,
   ContactShadows,
@@ -310,6 +310,24 @@ function Loading() {
   );
 }
 
+/** A vertical figure in a narrowing window loses her feet first. Camera distance is driven
+ *  off the viewport aspect so she stays whole from a wide desktop down to a half-width
+ *  column, and orbiting still works because this only moves the camera along its own axis. */
+function FitToViewport() {
+  const { camera, size } = useThree();
+  useEffect(() => {
+    const aspect = size.width / Math.max(size.height, 1);
+    // 0.62 is roughly where the figure fills a comfortable desktop frame
+    const pull = aspect >= 0.62 ? 1 : 0.62 / aspect;
+    const target = 3.7 * Math.min(pull, 2.2);
+    const cam = camera as THREE.PerspectiveCamera;
+    const dir = cam.position.clone().normalize();
+    cam.position.copy(dir.multiplyScalar(target));
+    cam.updateProjectionMatrix();
+  }, [camera, size.width, size.height]);
+  return null;
+}
+
 export function Viewer() {
   const params = useStore((s) => s.params);
   const prints = useStore((s) => s.prints);
@@ -332,9 +350,12 @@ export function Viewer() {
           toneMappingExposure: 0.78,
         }}
         camera={{ position: [0, -0.05, 3.7], fov: 32 }}
+        // she resizes the window to put a script beside it, and a narrow viewport crops a
+        // standing figure at the knees unless the camera backs off to suit the aspect
       >
         <Backdrop />
         <Rig />
+        <FitToViewport />
         <Suspense fallback={null}>
           <group position={[0, -0.9, 0]}>
             <Figure />
