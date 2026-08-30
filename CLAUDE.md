@@ -155,3 +155,27 @@ Caroline asked to work locally first.
 Two Daytona tier limits worth raising with them: snapshot creation returns 403 on this key
 (so a cold sandbox costs ~2 minutes instead of ~5 seconds, which only matters for recovery),
 and GPU concurrency is capped at 1 (so no parallel fan-out, and no two users at once).
+
+### 2026-08-30 (later) — README audited and rewritten
+
+Checked every claim in the README against the code. The technical arguments all held
+(garment-space placement, body-wrapped repeat, the control allow-list, the sandbox lifecycle,
+colour in the shader). Four things were stale, now fixed in the README:
+
+- **Restyle was missing entirely.** `restyle_print`, `lib/blend.ts` and `/api/blend` shipped in
+  `dcb18fb` but the README still said "two ways in". It is now three, with a section on writing
+  the technique brief.
+- **Sliders are beside the garment**, bottom right of the canvas (`Controls.tsx:78`), not under
+  the chat. The same stale line still sits in `lib/agent.ts` and in the decision log above.
+- **Deleting a print exists** (`ChatPanel.tsx:527`), so it came out of "not in it yet".
+- **Options are documented** (keep button, thumbnails, one click to restore).
+
+Rewritten in Caroline's voice per `~/.claude/skills/caroline-writing-voice/SKILL.md`, portfolio
+register: first person, no em dashes, no semicolons, sentence case, short paragraphs.
+
+**Two code issues found and left open** (README describes both honestly):
+
+1. `save_option` is declared in `TOOLS` but has no branch in `runTool`, so the agent gets
+   "no tool called save_option". The drop-in line is documented at `lib/options.ts:9`.
+2. The system prompt still tells the agent repeat "breaks at the panel seams", which is the
+   behaviour removed in `5196299`. The shader wraps the body with one seam at centre back.

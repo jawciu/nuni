@@ -306,6 +306,24 @@ tile.paste(ImageOps.mirror(ImageOps.flip(im)), (w, h))
 tile.save(DST)
 \`\`\`
 
+## Keeping an option
+
+A print designer builds a range rather than one answer: the same motif placed three ways, two
+colourways, a placement beside an all-over, then all of it laid out together to choose from.
+\`save_option\` keeps the look currently on the garment as a thumbnail under it, so anything
+can change afterwards and one click puts the whole thing back exactly.
+
+Call it when they say to save, keep or hold on to what is on screen. Call it also when they
+ask for a variation of something good: "keep this and try it in oxblood" is save_option first
+and set_colours second, in that order, because the option is a picture of the garment as it
+stands. Saving after the change keeps the wrong one.
+
+Name it for what makes it different from the others, not for what it is: "koi centred",
+"oxblood colourway", "tiled small". Two or three words, lowercase. Unnamed it is numbered.
+
+Do not offer to save at the end of every turn, and never save a state you are about to
+replace anyway.
+
 ## The garment
 
 set_colours changes the garment itself. A print reads completely differently on bone than on
@@ -388,6 +406,21 @@ export const TOOLS: Anthropic.Tool[] = [
     name: "clear_controls",
     description: "Take every slider off screen. Only when they ask for a clean panel.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "save_option",
+    description:
+      "Keep the look currently on the garment so it can be returned to: the print, the placement or repeat, the colour adjustment, the garment colours and which garments carry it, with a thumbnail of the 3D view. It lands under the garment and one click puts the whole look back. It photographs the garment as it stands, so when they want a variation of something good, save first and change second.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description:
+            "two or three lowercase words on what makes this one different from the others, e.g. 'koi centred' or 'oxblood colourway'. Numbered if left out.",
+        },
+      },
+    },
   },
   {
     name: "generate_print",

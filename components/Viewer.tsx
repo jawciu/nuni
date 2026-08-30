@@ -13,6 +13,7 @@ import {
 import * as THREE from "three";
 import { Garment } from "./Garment";
 import { Controls } from "./Controls";
+import { Options } from "./Options";
 import { useStore } from "@/lib/store";
 
 useGLTF.preload("/assets/figure.glb");
@@ -365,6 +366,8 @@ export function Viewer() {
       {/* the sliders live over the garment, not in the chat column: you drag
           them while you are looking at the print */}
       <Controls />
+      {/* the kept looks lay down opposite them, over the garment they are versions of */}
+      <Options />
     </div>
   );
 }

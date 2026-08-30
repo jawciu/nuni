@@ -73,6 +73,25 @@ export type ActiveTransform = {
   params: Record<string, number>;
 };
 
+/** A look worth keeping.
+ *
+ *  A print designer does not arrive at one answer, she builds a range: the same motif placed
+ *  three ways, two colourways, a placement beside an all-over. So an option holds everything
+ *  that makes the look, and restoring one is exact rather than approximate: the whole params
+ *  object, and the print it was carrying.
+ *
+ *  The thumbnail is of the 3D view, not of the flat artwork. She is choosing between looks on
+ *  a body, and a swatch of the print tells her nothing about whether it sits right. */
+export type SavedOption = {
+  id: string;
+  name: string;
+  /** the garment as it looked, centre-cropped to portrait and downsampled to a few kb */
+  thumb: string;
+  printId: string | null;
+  params: Params;
+  savedAt: number;
+};
+
 /** A control the agent decided you needed. Materialises as a slider. */
 export type ControlSpec = {
   id: string;

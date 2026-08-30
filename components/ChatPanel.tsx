@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { warmSandbox } from "@/lib/sandbox-client";
+import { runRestylePrint } from "@/lib/blend";
+import { runSaveOption } from "@/lib/options";
 import {
   CONTROL_TARGETS,
   ControlSpec,
@@ -217,6 +219,10 @@ export function ChatPanel() {
       return { ok: true, note: "on the garment already, it came back transparent" };
     }
 
+    if (name === "restyle_print") return runRestylePrint(refB64.current, input);
+
+    if (name === "save_option") return runSaveOption(input);
+
     if (name === "isolate_print") {
       if (!refB64.current) return { ok: false, error: "no reference photo uploaded yet" };
 
@@ -424,35 +430,34 @@ export function ChatPanel() {
 
   return (
     <div className="flex h-full flex-col border-r border-white/8 bg-[#131110]">
-      <header className="flex items-baseline justify-between px-5 pb-3 pt-4">
+      <header className="px-5 pb-3 pt-4">
         <h1 className="text-[13px] lowercase tracking-[0.42em] text-stone-100">nuni</h1>
-        <span className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.16em] text-stone-600">
-          <span
-            className={`h-1 w-1 rounded-full ${
-              store.sandbox?.id ? "bg-emerald-400/70" : "animate-pulse bg-amber-400/70"
-            }`}
-          />
-          {store.sandbox?.id ? "gpu ready" : "gpu warming"}
-        </span>
       </header>
 
       <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto px-5 pb-4">
         {!store.messages.length && (
-          <div className="space-y-3 pt-1">
-            <p className="text-[13px] leading-relaxed text-stone-500">
+          <div className="space-y-4 pt-1">
+            <p className="text-[13px] leading-relaxed text-stone-300">
               Say what you want on the garment. Ask to play with something and the dial for it
               turns up beside it.
             </p>
-            <div className="space-y-1.5 pt-1">
-              {OPENERS.map((o) => (
-                <button
-                  key={o}
-                  onClick={() => turn(o)}
-                  className="block w-full rounded-sm border border-white/8 bg-white/2 px-3 py-2 text-left text-[12px] leading-snug text-stone-400 transition hover:border-white/20 hover:bg-white/4 hover:text-stone-100"
-                >
-                  {o}
-                </button>
-              ))}
+            <div>
+              <div className="mb-2 text-[9px] uppercase tracking-[0.18em] text-stone-400">
+                try one
+              </div>
+              <div className="space-y-1.5">
+                {OPENERS.map((o) => (
+                  // the same lilac rule the person's own messages carry, because that
+                  // is exactly what these are: a line you could have typed
+                  <button
+                    key={o}
+                    onClick={() => turn(o)}
+                    className="block w-full rounded-md border border-white/12 border-l-2 border-l-[color:var(--nuni-lilac)] bg-white/6 px-3 py-2.5 text-left text-[12px] leading-snug text-stone-200 transition hover:bg-white/10 hover:text-stone-50"
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -460,87 +465,83 @@ export function ChatPanel() {
         {store.messages.map((m, i) => (
           <div key={i} className="text-[13px] leading-relaxed">
             {m.role === "user" ? (
-              <p className="border-l border-white/12 pl-3 text-stone-500">{m.text}</p>
+              <p className="border-l-2 border-[var(--nuni-lilac)] pl-3 text-stone-300">
+                {m.text}
+              </p>
             ) : (
-              <>
-                <p className="text-stone-100">
-                  {m.text || (m.pending ? <span className="text-stone-600">thinking</span> : "")}
-                </p>
-                {!!m.actions?.length && (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {m.actions.map((a, j) => (
-                      <span
-                        key={j}
-                        className="rounded-full bg-white/5 px-2 py-0.5 text-[9px] tracking-wide text-stone-500"
-                      >
-                        {a.replace(/_/g, " ")}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </>
+              <p className={m.pending ? "nuni-shimmer" : "text-stone-100"}>
+                {m.text || (m.pending ? "thinking" : "")}
+              </p>
             )}
           </div>
         ))}
 
         {store.status && (
-          <div className="flex items-center gap-2 text-[12px] text-stone-500">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-400" />
-            {store.status}
+          <div className="flex items-center gap-2 text-[12px]">
+            <span className="nuni-breathe h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />
+            <span className="nuni-shimmer">{store.status}</span>
           </div>
         )}
       </div>
 
-      {(store.reference || store.prints.length > 0) && (
-        <div className="border-t border-white/8 px-5 py-3">
-          <div className="mb-2 text-[9px] uppercase tracking-[0.18em] text-stone-600">
-            prints
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {store.reference && (
-              <figure className="shrink-0">
-                <div
-                  className="h-16 w-16 rounded-sm border border-white/10 bg-cover bg-center opacity-50"
-                  style={{ backgroundImage: `url(${store.reference})` }}
-                />
-                <figcaption className="mt-1 text-[9px] text-stone-600">reference</figcaption>
-              </figure>
-            )}
-            {store.prints.map((p) => (
-              <figure key={p.id} className="group relative shrink-0">
-                <button
-                  onClick={() => store.setActivePrint(p.id)}
-                  title={p.note}
-                  className={`block h-16 w-16 rounded-sm border bg-contain bg-center bg-no-repeat transition ${
-                    p.id === store.activePrintId
-                      ? "border-rose-400/80"
-                      : "border-white/10 hover:border-white/25"
-                  }`}
-                  style={{
-                    backgroundImage: `url(${p.url}), ${CHECKER}`,
-                    backgroundSize: "contain, 8px 8px",
-                  }}
-                />
-                <button
-                  onClick={() => store.removePrint(p.id)}
-                  aria-label={`remove ${p.label}`}
-                  className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-stone-900 text-[10px] leading-none text-stone-400 ring-1 ring-white/15 group-hover:flex hover:text-stone-100"
-                >
-                  ×
-                </button>
-                <figcaption className="mt-1 w-16 truncate text-[9px] text-stone-500">
-                  {p.label}
-                </figcaption>
-              </figure>
-            ))}
-          </div>
+      {(hinted || store.reference || store.prints.length > 0) && (
+        <div className="border-t border-white/8">
+          {/* the invitation to keep going sits above the prints, not under them.
+              Below the strip it was the last thing on the panel and read as a
+              footnote, which is the opposite of what it is asking for. */}
+          {hinted && (
+            <p className="px-5 pt-3 text-[12px] leading-snug text-stone-300">
+              Keep going. Ask for a change and the dial for it turns up beside the garment.
+            </p>
+          )}
+          {(store.reference || store.prints.length > 0) && (
+            <div className="px-5 pb-3 pt-3">
+              <div className="mb-2 text-[9px] uppercase tracking-[0.18em] text-stone-400">
+                prints
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {store.reference && (
+                  <figure className="shrink-0">
+                    <div
+                      className="h-16 w-16 rounded-sm border border-white/10 bg-cover bg-center opacity-50"
+                      style={{ backgroundImage: `url(${store.reference})` }}
+                    />
+                    <figcaption className="mt-1 text-[9px] text-stone-400">
+                      reference
+                    </figcaption>
+                  </figure>
+                )}
+                {store.prints.map((p) => (
+                  <figure key={p.id} className="group relative shrink-0">
+                    <button
+                      onClick={() => store.setActivePrint(p.id)}
+                      title={p.note}
+                      className={`block h-16 w-16 rounded-sm border bg-contain bg-center bg-no-repeat transition ${
+                        p.id === store.activePrintId
+                          ? "border-rose-400/80"
+                          : "border-white/10 hover:border-white/25"
+                      }`}
+                      style={{
+                        backgroundImage: `url(${p.url}), ${CHECKER}`,
+                        backgroundSize: "contain, 8px 8px",
+                      }}
+                    />
+                    <button
+                      onClick={() => store.removePrint(p.id)}
+                      aria-label={`remove ${p.label}`}
+                      className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-stone-900 text-[10px] leading-none text-stone-400 ring-1 ring-white/15 group-hover:flex hover:text-stone-100"
+                    >
+                      ×
+                    </button>
+                    <figcaption className="mt-1 w-16 truncate text-[9px] text-stone-400">
+                      {p.label}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
-
-      {hinted && (
-        <p className="px-5 pb-2 text-[11px] leading-snug text-stone-600">
-          Keep going. Ask for a change and the dial for it turns up beside the garment.
-        </p>
       )}
 
       <div
@@ -568,13 +569,13 @@ export function ChatPanel() {
                 className="h-9 w-9 shrink-0 rounded border border-white/12 bg-cover bg-center"
                 style={{ backgroundImage: `url(${store.reference})` }}
               />
-              <span className="min-w-0 flex-1 truncate text-[11px] text-stone-500">
+              <span className="min-w-0 flex-1 truncate text-[11px] text-stone-400">
                 reference attached, say what to cut out of it
               </span>
               <button
                 onClick={clearReference}
                 aria-label="remove the attached image"
-                className="shrink-0 text-[13px] leading-none text-stone-600 hover:text-stone-300"
+                className="shrink-0 text-[13px] leading-none text-stone-400 hover:text-stone-100"
               >
                 ×
               </button>
@@ -597,7 +598,7 @@ export function ChatPanel() {
                 ? "ask for a change"
                 : "describe the print you want on the garment"
             }
-            className="block max-h-[140px] w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[13px] leading-relaxed text-stone-100 placeholder:text-stone-600 focus:outline-none"
+            className="block max-h-[140px] w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[13px] leading-relaxed text-stone-100 placeholder:text-stone-500 focus:outline-none"
           />
 
           <div className="flex items-center justify-between px-2 pb-2">
@@ -605,7 +606,7 @@ export function ChatPanel() {
               type="button"
               onClick={() => fileRef.current?.click()}
               title="attach a photo of your own artwork to cut a motif out of"
-              className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-stone-500 transition hover:bg-white/5 hover:text-stone-200"
+              className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-stone-400 transition hover:bg-white/5 hover:text-stone-100"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
                 <path

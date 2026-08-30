@@ -7,6 +7,7 @@ import {
   DEFAULT_PARAMS,
   Params,
   Print,
+  SavedOption,
 } from "./types";
 
 type State = {
@@ -22,6 +23,10 @@ type State = {
   /** The model-written transform currently driving the sliders, or null when the print is
    *  whatever came out of generation or isolation. */
   transform: ActiveTransform | null;
+  /** Looks she kept, oldest first, so the row reads left to right the way a lay-down does. */
+  options: SavedOption[];
+  /** Which kept look is on screen, or null the moment anything is changed away from it. */
+  activeOptionId: string | null;
 
   setParams: (patch: Partial<Params>) => void;
   setAt: (path: string, value: number) => void;
@@ -37,7 +42,16 @@ type State = {
   setReference: (url: string | null) => void;
   setSandbox: (s: { id: string; url: string } | null) => void;
   setTransform: (t: ActiveTransform | null) => void;
+  saveOption: (o: SavedOption) => void;
+  removeOption: (id: string) => void;
+  restoreOption: (id: string) => void;
 };
+
+/** Options hold a whole params object each and are compared against live params, so they are
+ *  copied rather than aliased. Everything in there is plain data. */
+function clone<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v)) as T;
+}
 
 /** Write a dotted path into a nested object without mutating the original. */
 function writePath<T>(obj: T, path: string, value: unknown): T {
@@ -67,8 +81,13 @@ export const useStore = create<State>((set) => ({
   reference: null,
   sandbox: null,
   transform: null,
+  options: [],
+  activeOptionId: null,
 
-  setParams: (patch) => set((s) => ({ params: { ...s.params, ...patch } })),
+  // any change to the params is a step away from the kept look, so the highlight on the
+  // saved row lets go the moment she touches anything
+  setParams: (patch) =>
+    set((s) => ({ params: { ...s.params, ...patch }, activeOptionId: null })),
   setAt: (path, value) =>
     set((s) => {
       const params = writePath(s.params, path, value);
@@ -78,7 +97,7 @@ export const useStore = create<State>((set) => ({
         s.transform && path.startsWith("transform.")
           ? { ...s.transform, params: { ...s.transform.params, [path.slice(10)]: value } }
           : s.transform;
-      return { params, transform };
+      return { params, transform, activeOptionId: null };
     }),
   addControls: (c) =>
     set((s) => {
@@ -88,7 +107,9 @@ export const useStore = create<State>((set) => ({
       return { controls: [...byId.values()] };
     }),
   clearControls: () => set({ controls: [] }),
-  addPrint: (p) => set((s) => ({ prints: [...s.prints, p], activePrintId: p.id })),
+  // a new print is a new look, so the highlight on the saved row lets go with it
+  addPrint: (p) =>
+    set((s) => ({ prints: [...s.prints, p], activePrintId: p.id, activeOptionId: null })),
   updatePrint: (id, patch) =>
     set((s) => ({ prints: s.prints.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
   removePrint: (id) =>
@@ -99,9 +120,35 @@ export const useStore = create<State>((set) => ({
         // fall back to the most recent survivor rather than leaving the garment bare
         activePrintId:
           s.activePrintId === id ? (prints.at(-1)?.id ?? null) : s.activePrintId,
+        // only when the one on the garment went: deleting a print she is not looking at
+        // leaves the look, and the kept option it matches, exactly as it was
+        activeOptionId: s.activePrintId === id ? null : s.activeOptionId,
       };
     }),
-  setActivePrint: (id) => set({ activePrintId: id }),
+  // swapping the print is a step away from the kept look too, same as moving a slider
+  setActivePrint: (id) => set({ activePrintId: id, activeOptionId: null }),
+  saveOption: (o) =>
+    set((s) => ({ options: [...s.options, o], activeOptionId: o.id })),
+  removeOption: (id) =>
+    set((s) => ({
+      options: s.options.filter((o) => o.id !== id),
+      activeOptionId: s.activeOptionId === id ? null : s.activeOptionId,
+    })),
+  restoreOption: (id) =>
+    set((s) => {
+      const o = s.options.find((x) => x.id === id);
+      if (!o) return s;
+      return {
+        // one write, so the print and the numbers land on the same render and the garment
+        // never flashes the new placement carrying the old print
+        params: clone(o.params),
+        // a print deleted since the option was kept leaves the garment as it is rather than
+        // stripping it bare
+        activePrintId:
+          o.printId && s.prints.some((p) => p.id === o.printId) ? o.printId : s.activePrintId,
+        activeOptionId: o.id,
+      };
+    }),
   push: (m) => set((s) => ({ messages: [...s.messages, m] })),
   patchLast: (m) =>
     set((s) => {

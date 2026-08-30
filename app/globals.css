@@ -28,6 +28,81 @@ body {
   /* the geometry the rail, the handle and the readout all agree on */
   --nuni-thumb-size: 14px;
   --nuni-rail-h: 3px;
+
+  /* Lilac belongs to the person using this and to nothing else. It marks what
+     they said, and the examples of what they could say. Rose stays the app's
+     own accent, on the live print and the live dial. */
+  --nuni-lilac: #b9a3e6;
+
+  /* the two ends of the sweep that runs across the words while it is working.
+     The trough is a readable stone, not a dark grey: it has to look alive for
+     thirty five seconds, and half of that time is spent in the trough. */
+  --nuni-shimmer-base: #b0a79c;
+  --nuni-shimmer-hi: #fffdf7;
+}
+
+/* ------------------------------------------------------------------ *
+ * Working shimmer
+ *
+ * A print takes about thirty five seconds to come back, which is a long
+ * silence in a two minute demo. A slow light sweeping across the words
+ * says the thing is still alive without ever asking to be watched. It is
+ * deliberately unhurried: anything faster starts to nag by the third pass.
+ * ------------------------------------------------------------------ */
+
+.nuni-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--nuni-shimmer-base) 22%,
+    var(--nuni-shimmer-hi) 46%,
+    var(--nuni-shimmer-hi) 54%,
+    var(--nuni-shimmer-base) 78%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nuni-sweep 2.6s linear infinite;
+}
+
+@keyframes nuni-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+
+/* the dot beside the status keeps its own slower breath, so the two
+   never lock into one beat */
+.nuni-breathe {
+  animation: nuni-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes nuni-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nuni-shimmer {
+    animation: none;
+    background-image: none;
+    color: var(--nuni-shimmer-hi);
+  }
+  .nuni-breathe {
+    animation: none;
+    opacity: 0.9;
+  }
 }
 
 .nuni-controls {
