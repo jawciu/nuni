@@ -88,8 +88,8 @@ export function Viewer() {
         <Suspense fallback={null}>
           <group position={[0, -0.9, 0]}>
             <Body />
-            <Garment id="tee" url="/assets/tee.glb" params={params} printTex={tex} colour="#eae5dd" lift={0.007} />
-            <Garment id="trews" url="/assets/trews.glb" params={params} printTex={tex} colour="#3d4350" />
+            <Garment id="tee" url="/assets/tee.glb" params={params} printTex={tex} lift={0.007} />
+            <Garment id="trews" url="/assets/trews.glb" params={params} printTex={tex} />
             <ContactShadows position={[0, 0.002, 0]} opacity={0.5} scale={4} blur={2.4} far={1.6} />
           </group>
         </Suspense>

@@ -36,11 +36,18 @@ export async function warmSandbox(onStep: (s: string) => void): Promise<Warm | n
     }
     id = c.id as string;
     localStorage.setItem(KEY, id);
-    onStep("installing the cut-out models");
-    const i = await call({ action: "install", id });
-    if (i.error) {
-      onStep(`install failed: ${i.error}`);
-      return null;
+
+    // a box we were handed rather than made is already set up, or on its way. Running the
+    // installer again would only fight the uvicorn that is already holding the port.
+    const s = await call({ action: "status", id });
+    if (s.ready) return { id, url: s.url };
+    if (!c.reused) {
+      onStep("installing the cut-out models");
+      const i = await call({ action: "install", id });
+      if (i.error) {
+        onStep(`install failed: ${i.error}`);
+        return null;
+      }
     }
   }
 

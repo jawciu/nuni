@@ -8,12 +8,16 @@ forty sliders. The two or three you said you wanted to play with.
 
 ---
 
-## The idea
+## The problem space
 
-Most print tools give you a flat rectangle and a mockup. That is not how a print gets judged.
-A print is judged on the body, at size, sitting in the folds, from three feet away.
+In fashionj print designers need to visualise how their ideas will look on the garments before production. For high end labels this process takes a lot of idea generation, option creation and ideas tweaking. 
+For years this work has been done in Photoshop where designers upload images and manually edit and manouver them on a photograph of a model or sketch. 
 
-So nuni starts from the garment. The cloth is simulated, the print is painted into the
+The process is extremply ineffient and lack the 3D aspect.
+
+Nuni is a new gen tool that blends 3D and gen AI to unlock a new flexible and speedy design process for the fashion print designers.
+
+The cloth is simulated, the print is painted into the
 material's albedo, and the lighting multiplies over it. Move the print and the folds move
 with it. It never reads as a decal.
 

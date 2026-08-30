@@ -29,6 +29,7 @@ const VERT_BODY = /* glsl */ `
 
 const FRAG_HEAD = /* glsl */ `
   uniform sampler2D uPrint;
+  uniform vec3  uCloth;
   uniform int   uHasPrint;
   uniform int   uMode;        // 0 placed, 1 repeat
   uniform vec3  uBoxMin;
@@ -53,6 +54,11 @@ const FRAG_HEAD = /* glsl */ `
 `;
 
 const FRAG_BODY = /* glsl */ `
+  // the cloth colour rides our own uniform rather than the material's. three caches the
+  // built-in diffuse uniform against the material version, so setting material.color after
+  // the first compile never reaches the shader.
+  diffuseColor.rgb = uCloth;
+
   if (uHasPrint == 1) {
     vec4 ink = vec4(0.0);
 
@@ -115,19 +121,34 @@ export function Garment({
   url,
   params,
   printTex,
-  colour,
   lift = 0,
 }: {
   id: GarmentId;
   url: string;
   params: Params;
   printTex: THREE.Texture | null;
-  colour: string;
   lift?: number;
 }) {
   const { scene } = useGLTF(url);
-  const matRef = useRef<THREE.MeshStandardMaterial | null>(null);
-  const uniforms = useRef<Record<string, THREE.IUniform>>({});
+  // owned by us and reused across recompiles, so nothing is orphaned if three rebuilds
+  // the program
+  const uniforms = useRef<Record<string, THREE.IUniform>>({
+    uPrint: { value: null },
+    uCloth: { value: new THREE.Color("#ffffff") },
+    uHasPrint: { value: 0 },
+    uMode: { value: 0 },
+    uBoxMin: { value: new THREE.Vector3() },
+    uBoxSize: { value: new THREE.Vector3(1, 1, 1) },
+    uAcross: { value: 0 },
+    uHeight: { value: 0.6 },
+    uSize: { value: 0.4 },
+    uRot: { value: 0 },
+    uAspect: { value: 1 },
+    uFaceSign: { value: 1 },
+    uRepeatCount: { value: 6 },
+    uRepeatRot: { value: 0 },
+    uRepeatOffset: { value: new THREE.Vector2() },
+  });
 
   const { geometry, box, density } = useMemo(() => {
     let geo: THREE.BufferGeometry | null = null;
@@ -149,27 +170,15 @@ export function Garment({
 
   const material = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(colour),
+      color: new THREE.Color("#ffffff"),
       roughness: 0.86,
       metalness: 0.0,
       side: THREE.DoubleSide,
     });
     m.onBeforeCompile = (shader) => {
-      shader.uniforms.uPrint = { value: null };
-      shader.uniforms.uHasPrint = { value: 0 };
-      shader.uniforms.uMode = { value: 0 };
-      shader.uniforms.uBoxMin = { value: box.min.clone() };
-      shader.uniforms.uBoxSize = { value: box.getSize(new THREE.Vector3()) };
-      shader.uniforms.uAcross = { value: 0 };
-      shader.uniforms.uHeight = { value: 0.6 };
-      shader.uniforms.uSize = { value: 0.4 };
-      shader.uniforms.uRot = { value: 0 };
-      shader.uniforms.uAspect = { value: 1 };
-      shader.uniforms.uFaceSign = { value: 1 };
-      shader.uniforms.uRepeatCount = { value: 6 };
-      shader.uniforms.uRepeatRot = { value: 0 };
-      shader.uniforms.uRepeatOffset = { value: new THREE.Vector2() };
-      uniforms.current = shader.uniforms;
+      uniforms.current.uBoxMin.value = box.min.clone();
+      uniforms.current.uBoxSize.value = box.getSize(new THREE.Vector3());
+      Object.assign(shader.uniforms, uniforms.current);
 
       shader.vertexShader = shader.vertexShader
         .replace("#include <common>", `#include <common>\n${VERT_HEAD}`)
@@ -178,19 +187,13 @@ export function Garment({
         .replace("#include <common>", `#include <common>\n${FRAG_HEAD}`)
         .replace("#include <color_fragment>", `#include <color_fragment>\n${FRAG_BODY}`);
     };
-    // force a recompile whenever the colour changes identity
     m.customProgramCacheKey = () => `nuni-${id}`;
-    matRef.current = m;
     return m;
-  }, [box, colour, id]);
-
-  useEffect(() => {
-    if (matRef.current) matRef.current.color.set(colour);
-  }, [colour]);
+  }, [box, id]);
 
   useEffect(() => {
     const u = uniforms.current;
-    if (!u.uHasPrint) return;
+    (u.uCloth.value as THREE.Color).set(params.colours[id]);
     const on = !!printTex && params.targets.includes(id);
     u.uHasPrint.value = on ? 1 : 0;
     u.uPrint.value = printTex;

@@ -56,6 +56,14 @@ export function ChatPanel() {
       return { ok: true, shown: (input.controls as ControlSpec[]).map((c) => c.label) };
     }
 
+    if (name === "set_colours") {
+      const next = { ...s.params.colours };
+      if (typeof input.tee === "string") next.tee = input.tee;
+      if (typeof input.trews === "string") next.trews = input.trews;
+      s.setParams({ colours: next });
+      return { ok: true, colours: next };
+    }
+
     if (name === "clear_controls") {
       s.clearControls();
       return { ok: true };
@@ -124,6 +132,7 @@ export function ChatPanel() {
         targets: st.params.targets,
         controlsOnScreen: st.controls.map((c) => c.target),
         prints: st.prints.map((p) => p.label),
+        colours: st.params.colours,
         hasReference: !!refB64.current,
         sandboxReady: !!st.sandbox?.id,
       };
@@ -139,7 +148,13 @@ export function ChatPanel() {
         return;
       }
 
-      const blocks = r.content as Block[];
+      // the API decorates tool_use with fields it will not accept back, so hand it only
+      // the shape it defined
+      const blocks = (r.content as Block[]).map((b) =>
+        b.type === "tool_use"
+          ? { type: "tool_use" as const, id: b.id, name: b.name, input: b.input }
+          : b,
+      );
       const said = blocks
         .filter((b) => b.type === "text")
         .map((b) => (b as { text: string }).text)

@@ -29,6 +29,7 @@ export type Params = {
   placement: Placement;
   repeat: Repeat;
   targets: GarmentId[]; // which garments carry the print
+  colours: Record<GarmentId, string>; // the cloth itself, before any print
 };
 
 /** A control the agent decided you needed. Materialises as a slider. */
@@ -51,7 +52,8 @@ export type ChatMsg = {
 
 export const DEFAULT_PARAMS: Params = {
   mode: "placed",
-  placement: { across: 0, height: 0.62, size: 0.42, rotation: 0 },
+  placement: { across: 0, height: 0.46, size: 0.44, rotation: 0 },
   repeat: { scale: 14, rotation: 0, offsetX: 0, offsetY: 0 },
   targets: ["tee"],
+  colours: { tee: "#eae5dd", trews: "#3d4350" },
 };
