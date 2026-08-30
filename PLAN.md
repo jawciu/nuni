@@ -49,9 +49,12 @@ Texel density is measured off each mesh rather than hand tuned, so a 14cm repeat
 the tee and 14cm on the trousers. They are unwrapped into separate squares and differ by more
 than two to one.
 
-**3. Tune it.** The agent calls `add_controls` and the sliders appear under the chat, bound
-to a dotted path into the params object. Dragging them is instant and browser side. Nothing
-round trips.
+**3. Tune it.** The agent calls `add_controls` and the controls appear beside the garment,
+bottom right of the canvas, bound to a dotted path into the params object. Dragging them is
+instant and browser side. Nothing round trips.
+
+Not every control is a slider. Placed against repeat has nothing in between, so a spec can
+declare itself a choice and come back as a two-way switch instead of a dial.
 
 ---
 
@@ -82,7 +85,7 @@ app/page.tsx            chat on the left, canvas on the right
 components/ChatPanel    runs the agent loop and executes tools
 components/Viewer       R3F canvas, lighting, camera, contact shadow
 components/Garment      the shader. placement in garment space, repeat in UV space
-components/Controls     renders whatever sliders the agent asked for
+components/Controls     renders whatever controls the agent asked for
 lib/agent.ts            system prompt and tool definitions
 lib/store.ts            one zustand store, params + controls + prints
 lib/daytona.ts          sandbox image, setup script, GPU preference order
@@ -129,22 +132,24 @@ Two things that cost us time and are worth writing down:
 
 Working:
 
-- 3D viewer, three meshes, cloth lighting, orbit, contact shadow
-- placement and repeat shaders, garment space projection, measured texel density
-- agent loop with all five tools, agent-authored sliders
-- print generation, transparent, straight onto the cloth
+- 3D viewer, the figure and two garments, studio lighting, orbit
+- placement in garment space, repeat wrapped around the body, measured texel density
+- agent loop with nine tools, agent-authored controls, sliders and choices
+- print generation, transparent, straight onto the garment, on `gpt-image-1.5`
+- restyle, the same motif remade in another craft, optionally from a technique photo
+- live colour on the print, hue, saturation, brightness and contrast in the shader
+- colourway per garment, agent controlled
 - GPU sandbox lifecycle, warm on load, status with readable steps
 - isolation with model choice and a stated reason
+- transform, model-written Python run in the sandbox, its params become sliders
+- kept looks, saved as thumbnails under the garment, one click restores the whole state
+- print list with delete
 
 Next, in order:
 
-1. **Second silhouette in the demo path.** Trousers are loaded but the default target is the
-   tee alone. Prove "put it on the trousers too" on stage.
-2. **Print list polish.** The thumbnails work, switching between prints works, but there is
-   no way to delete one or re-cut with the other model.
-3. **Colourway.** Garment colour is hardcoded per mesh. One tool call away from being agent
-   controlled, and it is the cheapest way to make the screen change dramatically.
-4. **Repeat offset controls.** Wired end to end but never exercised in the demo.
+1. **A third silhouette.** The pipeline handles it, it is a Blender export and one line.
+2. **Deploy.** Vercel is linked and the keys are set, nothing is pushed yet.
+3. **Repeat offset controls.** Wired end to end but never exercised in the demo.
 
 Deliberately not doing:
 
@@ -157,12 +162,23 @@ Deliberately not doing:
 
 ## The demo, three minutes
 
-1. Open on the figure. Say one line about the cloth being simulated, then stop talking about it.
-2. "Generate a print of koi carp in bleached indigo and put it on the tee." It appears.
-3. "Let me play with the size." The slider materialises. Drag it. This is the moment.
-4. Upload a photo of real artwork. "Cut the flowers out of this." It picks the matting model
-   and says why. The artwork survives, which is the point.
-5. "Tile it across everything instead." Placement to repeat, tee to both garments, one line.
+1. Open on the figure. One line about the garments being simulated from real sewing patterns,
+   so the print sits in the folds, then stop talking about it.
+2. "Generate a print of koi carp in bleached indigo and put it on the tee." It appears
+   transparent and lands straight on the garment.
+3. "Let me play with the size." The control materialises. Drag it. This is the moment.
+4. Upload a photo of real artwork. "Cut the flowers out of this." It picks the model and says
+   why in one clause. The artwork survives, nothing is redrawn.
+5. "Now make it as embroidery." Same shape, another craft. Say that this one does redraw the
+   pixels, on purpose, and that the brief names the stitches rather than the word embroidery.
+6. "Keep this one." The thumbnail lands under the garment. Change the colourway, keep that too,
+   then click back to the first. The whole look returns.
+7. "Tile it across everything instead, and give me a toggle." Placed to repeat, tee to both
+   garments, and a switch to flip between them live.
+
+Timing. Steps 2 and 5 are both image calls, so that is over a minute of the three spent
+waiting. Generate the opener before going up, or talk through the sewing pattern point while
+it draws. Steps 3, 6 and 7 are instant and they are the ones worth the clock.
 
 Do not say "engineered print". Say "placement", or "like a band t-shirt", and let the visual
 contrast between wallpapered and placed do the explaining.

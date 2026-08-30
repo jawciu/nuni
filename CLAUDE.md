@@ -53,7 +53,18 @@ Optional: `NUNI_IMAGE_MODEL` (default `gpt-image-1-mini`), `NUNI_MODEL` (default
 - **Placement is projected in garment space, never UV space.** UV space here is the packed
   sewing pattern, so a UV coordinate lands on whichever panel happens to sit there. Projecting
   through the garment's own box means the same numbers work on every silhouette.
-- **Repeat wraps the body, it does not tile the UV square.** Tiling UV space restarts the
+- **Repeat projects triplanar.** It went UV tiling (seam down the centre front where the two
+  front panels meet), then a single cylindrical wrap (fixed the seam, but smeared anywhere the
+  surface runs parallel to the projection, badly on the sleeves, which are horizontal tubes).
+  It now samples all three axes and blends by the surface normal, sharpened to the fourth
+  power, so every face is printed by whichever axis faces it most squarely.
+- **A control has a kind.** A slider is for a range, a choice is for a switch with nothing in
+  between, like placed against repeat. Without the second kind the agent correctly refuses to
+  build a toggle rather than handing over a dial that cannot move.
+- **`gpt-image-1.5` for generation.** Better than the mini and faster with it, 27s against 35s,
+  same real transparency. `gpt-image-2` is better again and took 161s, which is unusable in a
+  two minute demo. Behind `NUNI_IMAGE_MODEL`.
+- **Superseded: repeat wrapped the body cylindrically.** Tiling UV space restarts the
   motif at every panel edge, which put a hard seam straight down the centre front where the
   two front panels meet. The tile grid now wraps the body's vertical axis by arc length, using
   the mesh's measured mean radius (a garment is not a circular cylinder and the bounding box
@@ -85,7 +96,7 @@ Optional: `NUNI_IMAGE_MODEL` (default `gpt-image-1-mini`), `NUNI_MODEL` (default
 Rebuilt by `scripts/figure_to_glb.py` (needs Blender + the MPFB2 add-on). Her spec, and it
 is not up for rediscovery: skin `toigo_light_skin_with_natural_makeup` (the makeup is painted
 into the map), hair `littleright_bobcut_hair` tinted `#3a2418` at gain ~1.2, eyes
-`high-poly`, brows `eyebrow010`, lashes `eyelashes01`. Arms drop **12 degrees, not 28** —
+`high-poly`, brows `eyebrow010`, lashes `eyelashes01`. Arms drop **12 degrees, not 28**:
 28 is a render-only setting, and the garments were draped against the 12 degree body.
 
 ## Vocabulary
@@ -142,21 +153,21 @@ docs, the code comments. Never "cloth", never "fabric". The agent is told this i
 
 ## Session log
 
-### 2026-08-30 — built
+### 2026-08-30, built
 
 Repo created and the app built end to end. Working and exercised: the viewer, both print
 mechanics, per-garment placement, colourway, the agent loop with six tools, generation
 (transparent, ~35s), and GPU isolation (~3s round trip). Screenshots of every milestone in
 `shots/` (gitignored); grab a fresh one with `shots/grab.sh`.
 
-Vercel project is linked and all three keys are set on it, but **nothing is deployed yet** —
+Vercel project is linked and all three keys are set on it, but **nothing is deployed yet**:
 Caroline asked to work locally first.
 
 Two Daytona tier limits worth raising with them: snapshot creation returns 403 on this key
 (so a cold sandbox costs ~2 minutes instead of ~5 seconds, which only matters for recovery),
 and GPU concurrency is capped at 1 (so no parallel fan-out, and no two users at once).
 
-### 2026-08-30 (later) — README audited and rewritten
+### 2026-08-30 (later), README audited and rewritten
 
 Checked every claim in the README against the code. The technical arguments all held
 (garment-space placement, body-wrapped repeat, the control allow-list, the sandbox lifecycle,
@@ -179,3 +190,21 @@ register: first person, no em dashes, no semicolons, sentence case, short paragr
    "no tool called save_option". The drop-in line is documented at `lib/options.ts:9`.
 2. The system prompt still tells the agent repeat "breaks at the panel seams", which is the
    behaviour removed in `5196299`. The shader wraps the body with one seam at centre back.
+
+### 2026-08-30 (later still), docs caught up with the build
+
+Caroline rewrote the README opening (kept verbatim, typos only) and cut the technique-brief,
+garment-space placement and "not in it yet" sections. Two facts from `1b1577a` and `5141a28`
+folded into both README and PLAN.md:
+
+- **`gpt-image-1.5`** via `NUNI_IMAGE_MODEL` in `.env.local`. The code default in both routes
+  is still `gpt-image-1-mini`, so the README names both. The 35s generation figure was measured
+  on mini and is labelled as such. Restyle now sends `input_fidelity: "high"`, which the mini
+  model rejects, so the model swap is what makes restyle hold the drawing.
+- **Choice controls.** `ControlSpec.kind` is `"slider" | "choice"`, used for placed against
+  repeat. Docs say controls, not sliders.
+
+PLAN.md's demo script rewritten to the app as built (restyle, keep, the toggle, both garments)
+with a timing note, since two image calls eat over a minute of the three. State of play
+refreshed. The rest of PLAN.md still says "cloth" throughout and describes repeat as living in
+UV space, which is pre-build drift, left alone for now.

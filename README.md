@@ -44,7 +44,7 @@ sliders.
 Three ways in, and they do different jobs.
 
 **Generate** invents one from a description. It comes back already transparent, so it goes
-straight onto the garment. About 35 seconds.
+straight onto the garment. About 35 seconds on `gpt-image-1-mini`.
 
 **Isolate** takes a photo of my own artwork and cuts the motif out of it. A segmentation model
 runs on a GPU and returns a mask, applied to my own pixels. Nothing is redrawn, which is why a
@@ -58,7 +58,9 @@ borrowing.
 **Restyle** remakes a motif in another craft. My drawing as embroidery, my photograph as a
 watercolour, my flowers screen printed. It holds the shape, the pose and the composition and
 redraws only the surface. The shape can come from the uploaded photo or from the print already
-on the garment, and a second photo can carry the technique in place of words.
+on the garment, and a second photo can carry the technique in place of words. It runs through
+`images.edit` at high input fidelity, which is what holds the drawing while the surface
+changes, and the mini model will not take that setting.
 
 ### 2. Put it on the garment
 
@@ -69,8 +71,11 @@ t-shirt. Most fashion print is placed, so this is the default.
 
 ### 3. Tune it
 
-I say what I want to play with, and the sliders appear beside the garment, bottom right of the
+I say what I want to play with, and the controls appear beside the garment, bottom right of the
 canvas. Dragging them is instant and browser side. Nothing round trips.
+
+Not everything is a slider. Placed against repeat has nothing in between, so it arrives as a
+two-way switch instead of a dial that would be lying about the range.
 
 Colour is part of that. Hue, saturation, brightness and contrast are applied in the shader as
 the print is drawn, so they run at frame rate and never rewrite the artwork. Drag the hue back
@@ -91,8 +96,9 @@ so everything is free to move afterwards.
 
 This is the backbone of the whole interaction. There is no fixed control panel in the app.
 The agent calls `add_controls` with a spec (label, a dotted path into the params
-object, min, max, step, unit) and the slider materialises. Ask for size and you get size. Ask
-to play with the repeat scale and rotation and you get two.
+object, min, max, step, unit) and the control materialises. Ask for size and you get size. Ask
+to play with the repeat scale and rotation and you get two. A spec can also declare itself a
+choice and come back as a switch, so nothing has to be forced into a range it does not have.
 
 The alternative, which is what every chat image tool does today, is prompt, look, prompt again.
 That loop is slow and it is imprecise, because language is a bad way to say "about six percent
@@ -200,7 +206,7 @@ app/api/*                 chat, generate, blend, isolate, transform, sandbox
 components/ChatPanel      runs the agent loop and executes every tool
 components/Viewer         R3F canvas, lighting, camera, the figure
 components/Garment        the shader. placement in garment space, repeat around the body
-components/Controls       renders whatever sliders the agent asked for
+components/Controls       renders whatever controls the agent asked for
 components/Options        the kept looks, and the button that keeps one
 lib/agent.ts              system prompt and the tool definitions
 lib/store.ts              one zustand store, params, controls, prints and kept looks
@@ -226,7 +232,7 @@ turn. A ninth, `save_option`, keeps the look on the garment as a thumbnail.
 | App | Next 16 (app router, Turbopack) · React 19 · TypeScript · Tailwind 4 · zustand |
 | 3D | React Three Fiber 9 · drei 10 · three · custom GLSL injected into `MeshStandardMaterial` |
 | Agent | Anthropic SDK, Claude Sonnet, client-side tool loop |
-| Images | OpenAI `gpt-image-1-mini`, generate and edit, transparent PNG straight onto the garment |
+| Images | OpenAI `gpt-image-1.5` (`NUNI_IMAGE_MODEL`, the code default is `gpt-image-1-mini`), generate and edit, transparent PNG straight onto the garment |
 | Sandbox | Daytona SDK, GPU box on `pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime` |
 | Isolation | BiRefNet and BiRefNet-matting, FastAPI, weights resident |
 | Assets | GarmentCode simulation and MakeHuman, prepared in Blender |
