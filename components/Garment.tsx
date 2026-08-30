@@ -12,10 +12,13 @@ import { GarmentId, Params } from "@/lib/types";
  * box instead means "centred, a hand below the neck" lands in the same place on every
  * silhouette, and the numbers transfer between the tee and the trousers.
  *
- * Repeats wrap the body cylindrically rather than tiling the UV square. UV space is the
- * packed sewing pattern, so tiling it restarts the motif at every panel edge and puts a hard
- * seam straight down the centre front, where the two front panels meet. Wrapping around the
- * body instead gives one seam at centre back, which is where a real garment has one.
+ * Repeats project triplanar rather than tiling the UV square. UV space is the packed sewing
+ * pattern, so tiling it restarts the motif at every panel edge and puts a hard seam straight
+ * down the centre front where the two front panels meet. A single wrap around the body fixes
+ * that but smears anywhere the surface runs parallel to the projection, which on a garment is
+ * the sides and, badly, the sleeves. Sampling on all three axes and blending by the surface
+ * normal means every face is printed by whichever axis faces it most squarely, so nothing
+ * stretches.
  *
  * Hue, saturation, brightness and contrast are applied here, to the sampled print colour,
  * rather than by re-cutting the print in a sandbox. A designer expects them to move like a
@@ -140,17 +143,24 @@ const FRAG_BODY = /* glsl */ `
         }
       }
     } else {
-      // wrap the tile grid around the body's vertical axis: arc length across, height up.
-      // A planar projection would smear badly down the sides and the sleeves.
-      vec3 c = uBoxMin + uBoxSize * 0.5;
-      float ang = atan(vLocalPos.z - c.z, vLocalPos.x - c.x);
       float tile = max(uRepeatSize, 0.001);
-      vec2 q = vec2(
-        (ang * uRadius) / tile,
-        ((vLocalPos.y - uBoxMin.y) * uAspect) / tile
-      );
-      q = rot2(q, uRepeatRot);
-      ink = texture2D(uPrint, fract(q + uRepeatOffset));
+      vec3 pl = (vLocalPos - uBoxMin) / tile;
+      vec2 asp = vec2(1.0, uAspect);
+
+      // sample down each axis, then let the surface normal choose. The fourth power
+      // sharpens the blend so a face is printed by one projection rather than smeared
+      // between two.
+      vec2 qx = rot2(pl.zy * asp, uRepeatRot) + uRepeatOffset;
+      vec2 qy = rot2(pl.xz * asp, uRepeatRot) + uRepeatOffset;
+      vec2 qz = rot2(pl.xy * asp, uRepeatRot) + uRepeatOffset;
+
+      vec3 w = abs(normalize(vLocalNormal));
+      w = w * w * w * w;
+      w /= max(w.x + w.y + w.z, 1e-5);
+
+      ink = texture2D(uPrint, fract(qx)) * w.x
+          + texture2D(uPrint, fract(qy)) * w.y
+          + texture2D(uPrint, fract(qz)) * w.z;
     }
 
     // live colour adjustment, on the sampled print only. The garment's own colour and the

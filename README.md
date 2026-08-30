@@ -7,17 +7,21 @@ controls you asked for.**
 
 ## Why I built it
 
-A print is judged on the body. At size, in the right place, sitting in the folds. Nothing
-else tells you whether it works.
+In fashion, print designers need to visualise how their ideas will look on the garments before
+production. This process takes a lot of idea generation, option creation and tweaking.
 
-The tools a print designer has do the opposite. A flat rectangle in Photoshop, then a mockup,
-then a photograph of a model with the artwork nudged onto it by hand. Every option is another
-manual composite, and scale, position and colourway stay guesses until sampling comes back. On
-a high end label that is dozens of iterations, done by hand, on a picture of a body.
+For years this work has been done in Photoshop, where designers upload images and manually edit
+and manoeuvre them on a photograph of a model or a sketch.
 
-nuni starts from the garment. I describe the print, it gets made or cut out, it goes onto a
-simulated garment on a 3D figure, and then the tool builds me the controls I asked for. Two or
-three sliders, the ones I named, instead of a panel of forty.
+This process is extremely inefficient and lacks the 3D aspect. Recently I was talking to a
+friend who is a print designer. She's now trying to use ChatGPT for this purpose. She loves it
+for idea generation but is frustrated by natural language when it comes to tweaking, like
+positioning, colour and size changes.
+
+That's why I built nuni.
+
+nuni is a new gen tool that blends 3D, gen AI and user-demanded controls to unlock a new,
+flexible and speedy design process for fashion print designers.
 
 ## What it sits between
 
@@ -99,38 +103,6 @@ nothing. Early on the agent invented `trews.placement.height` unprompted. Contro
 now checked against an allow-list, and an invented one comes back as an error the agent has to
 correct.
 
-### A technique brief names the craft's tells, never the craft
-
-Restyle lives or dies on the brief, so the agent is taught to write a real one. Ask an image
-model for "embroidery" and it returns a photograph of a jumper. Ask for the direction of the
-stitches, the sheen of the floss, the raised edge of the outline, the single strand visible at
-this scale, and it returns thread.
-
-Four moves, in order. Hold the drawing, said outright, or you get a different rose. Name the
-tells. Name the palette in two or three colours, because a technique left open drags its own
-colours in. Then demand the transparency in a full sentence, naming what you do not want, since
-that instruction fails most often and it fails by inventing a small patch of ground under the
-motif rather than a whole background.
-
-The other thing a technique does is come back dark. So the agent looks at the garment
-underneath and recolours it in the same turn when the print is about to disappear into it.
-
-### Placement lives in garment space, never UV space
-
-The obvious way to put a graphic on a mesh is to place it in UV space. It is also wrong here.
-
-These garments are simulated from real sewing patterns, so their UV layout **is** the pattern.
-A packed square of front panel, back panel, sleeves, waistband. A UV coordinate of 0.5, 0.42 is
-not the middle of the chest. It is whichever panel happens to sit at that spot in the packing,
-which is different on every garment.
-
-So placement is projected through the garment's own bounding box in the shader instead. Across
-and up, in the garment's own local space, on the side facing the front. "Centred, a hand below
-the neck" then means the same thing on the tee and on the trousers, and the numbers transfer
-between them.
-
-Height is still measured against each garment's own length, so placement is stored **per
-garment**. One shared number meant chest on the cropped tee and ankle on the trousers.
 
 ### Repeat wraps the body
 
@@ -247,7 +219,7 @@ request short, and it means the panel can narrate a cut-out while it is still in
 The tool surface is deliberately small. `set_params`, `add_controls`, `clear_controls`,
 `set_colours`, `generate_print`, `isolate_print`, `restyle_print` and `transform_print`. If
 someone asks for the change now and the dial afterwards, the agent calls two of them in one
-turn. A ninth, `save_option`, is defined but not wired up yet (see below).
+turn. A ninth, `save_option`, keeps the look on the garment as a thumbnail.
 
 | Layer | Tech |
 | --- | --- |
@@ -286,15 +258,3 @@ blender --background --python scripts/to_glb.py
 
 ---
 
-## What is not in it yet
-
-- **Asking for a look to be kept.** The keep button saves and restores correctly, and so does
-  `window.nuniOptions`, but the agent's `save_option` call is not wired into the panel yet, so
-  it comes back unknown.
-- **A third and fourth silhouette.** The pipeline handles it, I ran out of hours.
-- **Cutting a graphic to the pattern piece**, so the artwork is drawn for the panel it sits on
-  rather than placed on top of it. That is the version I want next, and it is more than a day's
-  work.
-- **Sketch to 3D garment generation.** Deliberately not doing it. A prepared library of
-  simulated garments beats anything I could generate in a day, and the simulation is the part
-  that makes the print sit correctly.
