@@ -16,6 +16,11 @@ import { GarmentId, Params } from "@/lib/types";
  * packed sewing pattern, so tiling it restarts the motif at every panel edge and puts a hard
  * seam straight down the centre front, where the two front panels meet. Wrapping around the
  * body instead gives one seam at centre back, which is where a real garment has one.
+ *
+ * Hue, saturation, brightness and contrast are applied here, to the sampled print colour,
+ * rather than by re-cutting the print in a sandbox. A designer expects them to move like a
+ * slider in Photoshop, and a round trip to a sandbox cannot do that. Doing it in the shader
+ * also means the print itself is never rewritten, so every setting is reversible.
  */
 
 const VERT_HEAD = /* glsl */ `
@@ -46,6 +51,10 @@ const FRAG_HEAD = /* glsl */ `
   uniform float uRadius;      // mean distance from the body's axis, for arc length
   uniform float uRepeatRot;
   uniform vec2  uRepeatOffset;
+  uniform float uHue;         // turns, -0.5 .. 0.5
+  uniform float uSat;         // 1 unchanged
+  uniform float uBright;      // 1 unchanged
+  uniform float uContrast;    // 1 unchanged
   varying vec3 vLocalPos;
   varying vec3 vLocalNormal;
   varying vec2 vNuniUv;
@@ -53,6 +62,57 @@ const FRAG_HEAD = /* glsl */ `
   vec2 rot2(vec2 p, float a) {
     float s = sin(a), c = cos(a);
     return vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+  }
+
+  // The print is decoded to linear the moment it is sampled, but hue, saturation, brightness
+  // and contrast are all defined on the gamma-encoded values a designer sees in Photoshop.
+  // Mid grey is 0.5 there and 0.21 in linear, so a contrast pivot applied linearly would
+  // pull everything towards a colour nobody asked for. Encode, adjust, decode.
+  vec3 nuniToSrgb(vec3 c) {
+    c = max(c, vec3(0.0));
+    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
+  }
+  vec3 nuniToLinear(vec3 c) {
+    c = max(c, vec3(0.0));
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
+  }
+
+  vec3 nuniRgbToHsv(vec3 c) {
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+  }
+  vec3 nuniHsvToRgb(vec3 c) {
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+  }
+
+  // Colour only. Alpha never comes near this, so the cut-out edge is exactly as sharp at
+  // every setting as it is at none.
+  vec3 nuniAdjust(vec3 lin) {
+    // neutral is an exact passthrough, so a slider dragged out and back leaves no residue
+    if (uHue == 0.0 && uSat == 1.0 && uBright == 1.0 && uContrast == 1.0) return lin;
+
+    vec3 c = nuniToSrgb(lin);
+
+    if (uHue != 0.0) {
+      vec3 hsv = nuniRgbToHsv(c);
+      hsv.x = fract(hsv.x + uHue);
+      c = nuniHsvToRgb(hsv);
+    }
+
+    // saturation is a lerp against luma rather than HSV's S: pulling HSV saturation to zero
+    // takes a pure red to white, where a designer expects a properly weighted mid grey
+    float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c = mix(vec3(luma), c, uSat);
+
+    c *= uBright;
+    c = (c - 0.5) * uContrast + 0.5;
+
+    return nuniToLinear(clamp(c, 0.0, 1.0));
   }
 `;
 
@@ -92,6 +152,10 @@ const FRAG_BODY = /* glsl */ `
       q = rot2(q, uRepeatRot);
       ink = texture2D(uPrint, fract(q + uRepeatOffset));
     }
+
+    // live colour adjustment, on the sampled print only. The garment's own colour and the
+    // alpha threshold below are both untouched by it.
+    ink.rgb = nuniAdjust(ink.rgb);
 
     // transparent pixels carry black RGB, so a straight mix by alpha draws a dark
     // rectangle round the motif. Threshold it away.
@@ -133,6 +197,10 @@ export function Garment({
     uRadius: { value: 0.2 },
     uRepeatRot: { value: 0 },
     uRepeatOffset: { value: new THREE.Vector2() },
+    uHue: { value: 0 },
+    uSat: { value: 1 },
+    uBright: { value: 1 },
+    uContrast: { value: 1 },
   });
 
   const { geometry, box, radius } = useMemo(() => {
@@ -202,6 +270,11 @@ export function Garment({
     u.uRepeatOffset.value.set(params.repeat.offsetX, params.repeat.offsetY);
     // the meshes are in metres and the repeat is quoted in centimetres
     u.uRepeatSize.value = Math.max(0.02, params.repeat.scale) / 100;
+    // degrees round the wheel, carried into the shader as turns so the wrap is a plain fract
+    u.uHue.value = params.adjust.hue / 360;
+    u.uSat.value = params.adjust.saturation;
+    u.uBright.value = params.adjust.brightness;
+    u.uContrast.value = params.adjust.contrast;
     if (printTex?.image) {
       const im = printTex.image as { width: number; height: number };
       u.uAspect.value = im.width / im.height || 1;

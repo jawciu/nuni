@@ -24,6 +24,16 @@ export type Repeat = {
   offsetY: number;
 };
 
+/** Live colour adjustment on the print, applied in the shader as the print is sampled.
+ *  Nothing here touches the print's own pixels, so every setting is reversible and the
+ *  original artwork stays in the print list untouched. */
+export type Adjust = {
+  hue: number; // degrees, -180 .. 180, 0 unchanged
+  saturation: number; // 0 flat grey .. 2 doubled, 1 unchanged
+  brightness: number; // 0 black .. 2 doubled, 1 unchanged
+  contrast: number; // 0 flat .. 2 doubled, 1 unchanged
+};
+
 export type Params = {
   mode: PrintMode;
   /** Per garment, because height is measured against that garment's own length: one number
@@ -31,6 +41,10 @@ export type Params = {
    *  shared, because it is quoted in real centimetres and normalised by texel density. */
   placement: Record<GarmentId, Placement>;
   repeat: Repeat;
+  /** Shared, not per garment: this is an adjustment to the print itself, so the same print
+   *  reads the same way wherever it lands. It rides the shader, so it costs nothing and
+   *  moves at 60fps, and it is never baked into the print. */
+  adjust: Adjust;
   targets: GarmentId[]; // which garments carry the print
   colours: Record<GarmentId, string>; // the garment itself, before any print
   /** Live values for whatever the current print transform exposed. The agent names these
@@ -84,6 +98,7 @@ export const DEFAULT_PARAMS: Params = {
     trews: { across: -0.32, height: 0.62, size: 0.30, rotation: 0 },
   },
   repeat: { scale: 14, rotation: 0, offsetX: 0, offsetY: 0 },
+  adjust: { hue: 0, saturation: 1, brightness: 1, contrast: 1 },
   targets: ["tee"],
   colours: { tee: "#eae5dd", trews: "#3d4350" },
   transform: {},
@@ -105,6 +120,10 @@ export const CONTROL_TARGETS = [
   "repeat.rotation",
   "repeat.offsetX",
   "repeat.offsetY",
+  "adjust.hue",
+  "adjust.saturation",
+  "adjust.brightness",
+  "adjust.contrast",
 ] as const;
 
 export type ControlTarget = (typeof CONTROL_TARGETS)[number] | `transform.${string}`;

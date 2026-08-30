@@ -53,9 +53,24 @@ Optional: `NUNI_IMAGE_MODEL` (default `gpt-image-1-mini`), `NUNI_MODEL` (default
 - **Placement is projected in garment space, never UV space.** UV space here is the packed
   sewing pattern, so a UV coordinate lands on whichever panel happens to sit there. Projecting
   through the garment's own box means the same numbers work on every silhouette.
-- **Repeat scale is normalised by measured texel density.** The tee and the trousers are
-  unwrapped into separate squares and differ by more than two to one, so an unnormalised
-  repeat comes out twice the size on the legs.
+- **Repeat wraps the body, it does not tile the UV square.** Tiling UV space restarts the
+  motif at every panel edge, which put a hard seam straight down the centre front where the
+  two front panels meet. The tile grid now wraps the body's vertical axis by arc length, using
+  the mesh's measured mean radius (a garment is not a circular cylinder and the bounding box
+  overestimates the sweep, which squashes the tile). One seam, at centre back, where a real
+  garment has one. Texel density normalisation went with it: measuring in real centimetres on
+  the body is consistent across garments for free.
+- **Colour is shader-side, structure is sandbox-side.** Hue, saturation, brightness and
+  contrast are live uniforms on the print at 60fps, non-destructive and reversible, because a
+  designer expects those to feel like Photoshop and a 2s round trip does not. `transform_print`
+  keeps the structural treatments (posterise, halftone, mirror into a half-drop), which is also
+  the better argument for the sandbox: those are model-written code, colour is a slider.
+  The adjustment runs on the sampled print before the alpha threshold, so the cut-out edge is
+  untouched at every setting.
+- **Adjust in gamma space, not linear.** Hue, saturation and contrast are all defined on
+  gamma-encoded values. A contrast pivot of 0.5 in linear sits at 0.21 sRGB and drags the
+  whole print towards a colour nobody asked for. Saturation lerps against Rec.709 luma rather
+  than HSV's S, because HSV saturation at 0 takes pure red to white instead of to grey.
 - **One warm sandbox, not many.** GPU concurrency on this account is capped at one, so
   `create` reuses a running box rather than failing.
 - **Placement is per garment, repeat is shared.** Height is measured against each garment's
@@ -77,6 +92,18 @@ into the map), hair `littleright_bobcut_hair` tinted `#3a2418` at gain ~1.2, eye
 
 It is a **garment**, everywhere a user or a judge can see: the UI, the agent's replies, the
 docs, the code comments. Never "cloth", never "fabric". The agent is told this in its prompt.
+
+## Measured numbers, for the README and for stage
+
+- Garment UVs: **0.00% stretched triangles** on both the cropped tee (10,102 tris) and the
+  wide-leg trousers (31,234), 100% of UVs inside 0-1.
+- Isolation: **BiRefNet 0.75s per image** on an RTX 5090, best of four models trialled.
+- Transform: **~360ms executing inside the sandbox**, ~2s round trip from the browser
+  including upload and download.
+- Generation: **~35s** with `gpt-image-1-mini`, real transparency (about 70% fully clear,
+  under 1% partial).
+- Cold sandbox: **~2 minutes** to install and pull weights. A snapshot would make it ~5s, but
+  snapshot creation 403s on this account.
 
 ## Traps, all paid for once already
 
@@ -104,6 +131,12 @@ docs, the code comments. Never "cloth", never "fabric". The agent is told this i
   map with a gain before tinting or the hair reads as a void.
 - **`alphaMap` reads the GREEN channel.** Feeding it a near-black hair map discards every
   fragment and the hair disappears. The map's own alpha is already the mask.
+- **Never replace the eye material, only tune it.** MakeHuman's `high-poly` eye paints the
+  iris on the INSIDE of the ball, read through a double-sided transparent cornea. Swap that
+  material for anything opaque and you see the outer shell only, and she goes blind.
+- **Hard-reload before judging any lighting or shader change.** Fast Refresh reuses the cached
+  program (`customProgramCacheKey` is a constant) and the print renders as a grey stipple.
+  Not a bug in the demo path, but it will cost you half an hour.
 - **Playwright's screenshot times out on an animating canvas.** `preserveDrawingBuffer` is on,
   so grab `canvas.toDataURL()` instead. `shots/grab.sh` decodes it.
 

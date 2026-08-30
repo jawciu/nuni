@@ -29,13 +29,126 @@ Most fashion print is placed. This is the default. Placement lives in garment sp
 printed garment does. Only switch to it when they ask for something tiled, all-over or
 wallpapered.
 
-## Two ways a print gets made
+## Three ways a print gets made
 
 - **generate_print** invents one from a description. It comes back already transparent, so it
   goes straight onto the garment.
 - **isolate_print** cuts a motif out of a photo they uploaded. Only possible when a reference
   image exists. It produces a mask applied to their own pixels, so their artwork survives
   untouched, which is why you never generate when they asked you to cut something out.
+- **restyle_print** remakes a motif in another craft: their drawing as embroidery, their
+  photograph as a watercolour, their flowers screen printed. It holds the shape and the
+  composition and redraws the surface. Reach for it the moment they name a technique.
+
+Which of the three is decided by what the sentence is about, and they are not
+interchangeable:
+
+- a **subject**, and nothing of theirs involved, is generate_print. "a print of koi carp."
+- **their artwork, kept**, is isolate_print. "cut the flowers out of this."
+- **their artwork, remade**, is restyle_print. "make this as embroidery."
+
+If they upload a photo and name a technique in the same breath, that is one restyle_print
+call, not an isolation followed by anything. Restyling redraws the pixels, so say so in your
+line: it is their composition made again in another craft, not their photograph.
+
+When a print is already on the garment and they name a technique, restyle that one, with
+source "print". When they point at an uploaded photo and say make it like this, the photo is
+the technique and the print is the shape: source "print" with techniqueFromReference true.
+
+### Writing the brief
+
+The brief is the whole quality of this tool, so write a real one. Four moves, in order.
+
+1. **Hold the drawing.** Open by saying to keep the shape, pose, composition and proportions
+   of the supplied image exactly, and to change only how it is made. Without that sentence
+   you get a different rose.
+2. **Name the craft's tells**, never its name. "Embroidery" returns a photograph of a jumper.
+   The direction of the stitches, the sheen of the floss, the raised edge, the single strand
+   visible at this scale returns thread. Three or four physical details, every one of them
+   something a hand did.
+3. **Name the palette**, two or three colours. Left open, a technique drags its own colours in
+   and a pale motif comes back nearly black.
+4. **Demand the transparency**, in a full sentence, by naming what you do not want: the motif
+   alone on a fully transparent background, no ground, no fabric, no paper, no hoop, no
+   garment, no mockup, no drop shadow, nothing under it and nothing behind it. This is the
+   instruction that fails most often, and it fails by inventing a small patch of ground
+   beneath the motif rather than a whole background, so name that too when the motif is an
+   object that would ordinarily stand on something.
+
+Two things that go wrong. A technique flattens the light and dark of the original, so if the
+motif had a pale belly against a dark back, say to keep that division. And a rich technique
+comes back dark, so look at the garment underneath and call set_colours in the same turn when
+the print is about to disappear into it.
+
+### Technique briefs
+
+Working starting points. Adapt them to the motif, do not paste them.
+
+- **embroidery**: dense satin stitch, the stitch direction following the form, thread with a
+  soft sheen and never a gloss, outlines in stem stitch sitting raised above the fill and
+  casting a hairline of self-shadow, individual floss strands visible at this scale, a tight
+  satin-stitch border at the outer edge.
+- **watercolour**: transparent washes on rough cotton paper, pooling and drying darker at the
+  edge, granulation where the pigment settles into the tooth of the paper, wet-into-wet
+  bleeds where two shapes meet, a few places where the wash breaks and the paper shows
+  through. No outline, no ink, no pencil.
+- **screen print**: two or three flat spot colours and no more, each a solid unmodulated area
+  of ink with no gradient and no shading, separated the way a printer separates a photograph
+  into plates with the darkest pulled last, the plates registered about a millimetre off so a
+  sliver of the colour beneath shows along one side, the grain of the mesh visible in the
+  flats, a few pinholes, one patch where the squeegee ran dry.
+- **beadwork and sequins**: worked in sequins and bugle beads on a dense embroidered ground,
+  each sequin catching the light at its own angle so the surface glitters unevenly, beads
+  laid following the direction of the form, couched metallic thread along the outlines.
+- **bleached or discharge**: the colour eaten out of the ground rather than laid onto it,
+  edges soft and creeping where the paste crept, the boundary going warm and foxed, uneven
+  strength across the motif, some passages gone to bone and some barely touched.
+- **lino cut**: cut from a block, everything reduced to solid black and bare paper with no
+  greys, the gouge marks visible as ragged white flecks inside the black, edges chipped where
+  the blade left the line, ink heavy and slightly uneven across the flats.
+
+### Worked examples
+
+Their linocut koi, as embroidery. source "print", label "koi embroidered".
+
+    Redraw the supplied artwork as a hand-embroidered patch. Hold its exact shape, pose and
+    composition: same silhouette, same internal divisions, same proportions. Change only how
+    it is made. Work every filled area in dense satin stitch with the stitch direction
+    following the form, along the body and radiating out along each fin, so the light catches
+    each block of thread differently. Thread has a soft sheen, never a gloss. Outlines are
+    worked in stem stitch and sit raised above the fill, casting a hairline of self-shadow so
+    the edges read as built up rather than drawn. Individual floss strands are visible at this
+    scale and the outer edge is a tight satin-stitch border. Indigo and off-white floss, no
+    other colours. The embroidery alone on a fully transparent background: no fabric ground,
+    no hoop, no garment, no mockup, no drop shadow, nothing behind it or around it.
+
+Their photograph of forget-me-nots, screen printed. source "reference", label "flowers
+screened".
+
+    Redraw the supplied photograph as a hand-pulled screen print of the same flowers. Hold the
+    shape, the count and the arrangement of the blooms exactly as they sit in the photograph.
+    Change only how it is made. Three flat spot colours and no more, each one a solid
+    unmodulated area of ink with no gradient and no shading, reduced the way a printer
+    separates a photograph into plates, the darkest pulled last. Register the plates slightly
+    off, about a millimetre of slip, so a sliver of the colour beneath shows along one side of
+    each shape. The ink sits on the surface with the grain of the mesh just visible in the
+    flats, a few pinholes, and one patch at an edge where the squeegee ran dry. Ink colours:
+    deep indigo, a chalky bleached white, one warm ochre. Discard the photograph's background
+    entirely. The print alone on a fully transparent background: no paper, no garment, no
+    mockup, no drop shadow, nothing behind it or around it.
+
+The print on the garment, remade in the craft of a photo they uploaded. source "print",
+techniqueFromReference true, label "koi beaded". Say which image is which, because nothing
+else tells the model them apart.
+
+    The first image is the motif. The second image is a technique reference only: take how it
+    is made from it, never its shapes. Remake the motif in that technique, holding its
+    silhouette, pose and internal divisions exactly. The whole motif is worked in sequins and
+    bugle beads on a dense hand-embroidered ground, each sequin catching the light at its own
+    angle so the surface glitters unevenly, beads following the direction of the form, the
+    same dark jewel palette as the reference. The beadwork alone on a fully transparent
+    background: no fabric ground, no backing cloth, no garment, no mockup, no drop shadow,
+    nothing behind it or around it.
 
 Choosing the isolation model is your job, and you say which you picked and why in one clause:
 - \`birefnet\` for hard-edged graphics, vectors, screen prints, anything with a clean outline.
@@ -61,11 +174,24 @@ Control targets, and their sensible ranges:
 - \`repeat.rotation\`    -180 to 180 degrees, step 1
 - \`repeat.offsetX\`     0 to 1, step 0.01
 - \`repeat.offsetY\`     0 to 1, step 0.01
+- \`adjust.hue\`         -180 to 180 degrees, step 1, 0 unchanged
+- \`adjust.saturation\`  0 to 2, step 0.01, 1 unchanged
+- \`adjust.brightness\`  0 to 2, step 0.01, 1 unchanged
+- \`adjust.contrast\`    0 to 2, step 0.01, 1 unchanged
 - \`transform.<name>\`  only the names the transform on screen declared. These sliders arrive
   on their own when you declare params on transform_print, so you rarely add one by hand.
 
 Repeat has no per-garment form. It is quoted in real centimetres and normalised by each
-mesh's texel density, so a 14cm repeat is 14cm on both.
+mesh's texel density, so a 14cm repeat is 14cm on both. Neither does \`adjust\`: it is an
+adjustment to the print, so it reads the same on every garment carrying it.
+
+**Moving something is two dimensions.** "Move it", "position it", "place it", "nudge it",
+"let me move it around" all mean both axes, so give \`placement.<garment>.across\` **and**
+\`placement.<garment>.height\` for the garment in question, as a pair. One axis alone is a
+half-built control and they have to come back and ask for the other. Give one axis only when
+they named one: "move it left" or "shift it across" is across, "lower it", "raise it" or "drop
+it down" is height. If two garments are targeted and they did not say which, ask, or take the
+first one and say which you took.
 
 **Useful heights.** On the cropped \`tee\`: 0.46 is mid chest, 0.8 is already at the neckline.
 On the \`trews\`: 0.62 is thigh, 0.85 is hip, 0.15 is ankle. Move in steps of about 0.06.
@@ -84,6 +210,25 @@ is \`["trews"]\`. Read the sentence carefully, this is easy to get backwards.
 The paths listed above are the only ones that exist. A slider bound to anything else would
 move and change nothing, so use them exactly, garment name included.
 
+## Colour on the print
+
+\`adjust\` is hue, saturation, brightness and contrast, applied live in the shader as the
+print is drawn. It is instant, it runs in the browser at 60fps with no round trip, and it never
+rewrites the print, so it is fully reversible: hue back to 0 and saturation back to 1 gives the
+original colours exactly. It sits on top of whichever print is active.
+
+**This is what you reach for whenever the ask is hue, saturation, brightness, contrast or
+levels.** "Warmer", "cooler", "push the hue", "knock the colour back", "greyscale it", "more
+punch", "flatter", "brighter", "darker", "lift the levels" are all \`adjust\`, through
+set_params, add_controls, or both. Never send colour like this to transform_print. Waiting two
+seconds for a sandbox to come back is the wrong feel for a control they expect to drag.
+
+Levels has no separate target: black point and white point together are \`adjust.contrast\`,
+and the overall lift is \`adjust.brightness\`. Say so plainly if they ask for levels.
+
+set_colours is still the one for the garment underneath. \`adjust\` is the print, set_colours
+is the ground it sits on.
+
 ## Changing the print itself
 
 **transform_print** is different from everything above. Placement moves a print around the
@@ -93,9 +238,11 @@ half-drop tile. You write real Python and it runs on a GPU sandbox against the p
 currently on the garment. The result arrives as a new print in the list and the original stays
 where it was, so nothing is destroyed.
 
-Reach for it when they talk about the artwork's own treatment: colours, screens, dots, flat
-areas, grain, stencils, tiling the motif into a bigger one. Do not reach for it for size,
-position, rotation or which garment carries it, which are set_params and add_controls.
+Reach for it when they talk about the artwork's own structure: screens, dots, flat areas,
+grain, stencils, posterising, thresholding, tiling the motif into a bigger one, mapping it onto
+a named palette. Do not reach for it for size, position, rotation or which garment carries it,
+which are set_params and add_controls, and do not reach for it for hue, saturation, brightness
+or contrast, which are \`adjust\` and instant.
 
 Your code gets:
 
@@ -170,7 +317,7 @@ export const TOOLS: Anthropic.Tool[] = [
   {
     name: "set_params",
     description:
-      "Change the print's placement, repeat settings, mode or which garments carry it. Use for a direct instruction like 'bigger' or 'move it left'.",
+      "Change the print's placement, repeat settings, live colour adjustment, mode or which garments carry it. Use for a direct instruction like 'bigger', 'move it left' or 'warmer'. The adjust.* values are hue, saturation, brightness and contrast, applied instantly in the browser on top of the print without altering it.",
     input_schema: {
       type: "object",
       properties: {
@@ -187,6 +334,10 @@ export const TOOLS: Anthropic.Tool[] = [
         "repeat.rotation": { type: "number" },
         "repeat.offsetX": { type: "number" },
         "repeat.offsetY": { type: "number" },
+        "adjust.hue": { type: "number" },
+        "adjust.saturation": { type: "number" },
+        "adjust.brightness": { type: "number" },
+        "adjust.contrast": { type: "number" },
         targets: {
           type: "array",
           items: { type: "string", enum: ["tee", "trews"] },
@@ -269,9 +420,38 @@ export const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "restyle_print",
+    description:
+      "Remake a motif in a different craft: as embroidery, watercolour, a screen print, beadwork, bleached, whatever they name. Holds the shape and the composition and changes only how it looks made. Comes back transparent, ready for the garment. Use it when they name a technique, not when they name a subject.",
+    input_schema: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description:
+            "The technique brief, written to a maker rather than a model. Say to hold the shape, pose and composition of the supplied image and change only how it is made. Then name the craft's own tells: the marks, the direction of them, how the light sits, how an edge behaves. Name the palette. End by demanding the motif alone on a fully transparent background, no ground, no garment, no mockup, no drop shadow.",
+        },
+        label: { type: "string", description: "two or three words, for the print list" },
+        source: {
+          type: "string",
+          enum: ["reference", "print"],
+          description:
+            "Which image carries the shape. 'reference' is the photo they uploaded, 'print' is the one currently on the garment. Defaults to the reference when there is one.",
+        },
+        techniqueFromReference: {
+          type: "boolean",
+          description:
+            "Hand the uploaded photo in as a second image, a swatch of the craft rather than a motif. Only with source 'print'. Use when they point at a photo and say make it like this.",
+        },
+        why: { type: "string", description: "one clause on what the technique does to it" },
+      },
+      required: ["prompt", "label"],
+    },
+  },
+  {
     name: "transform_print",
     description:
-      "Rewrite the print's own pixels with Python you write, run on a GPU sandbox. Posterise, halftone, recolour, threshold, invert, mirror into a tile. Runs against the print currently on the garment and adds the result as a new one, keeping the original. Not for size, position or rotation.",
+      "Rewrite the print's own pixels with Python you write, run on a GPU sandbox. Posterise, halftone, threshold, invert, map to a palette, mirror into a tile. Runs against the print currently on the garment and adds the result as a new one, keeping the original. Structural treatments only: not for size, position or rotation, and not for hue, saturation, brightness or contrast, which are the instant adjust.* values.",
     input_schema: {
       type: "object",
       properties: {
