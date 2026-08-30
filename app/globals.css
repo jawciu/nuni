@@ -6,38 +6,224 @@ body {
   overscroll-behavior: none;
 }
 
+/* ------------------------------------------------------------------ *
+ * Controls
+ *
+ * These get dragged constantly through the demo and read from several
+ * feet away, so they are built like instrument dials rather than form
+ * inputs: a rail you can see the whole range of, a filled portion that
+ * says where you are in it, and a readout that rides the handle instead
+ * of sitting in a corner. Bipolar controls fill outwards from zero, so
+ * "rotation" and "across" show you which side of centre you are on.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --nuni-label: #c6bfb4;
+  --nuni-ink: #f3f0ea;
+  --nuni-mute: rgba(255, 255, 255, 0.24);
+  --nuni-rail: rgba(255, 255, 255, 0.1);
+  --nuni-fill: #cbc3b5;
+  --nuni-thumb: #f6f3ec;
+  --nuni-accent: #fb7185;
+  /* the geometry the rail, the handle and the readout all agree on */
+  --nuni-thumb-size: 14px;
+  --nuni-rail-h: 3px;
+}
+
+.nuni-controls {
+  --nuni-live: var(--nuni-fill);
+  animation: nuni-arrive 320ms cubic-bezier(0.16, 0.9, 0.3, 1) both;
+}
+
+/* it should feel like it was handed to you, not like it was always there */
+@keyframes nuni-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nuni-controls {
+    animation: none;
+  }
+}
+
+.nuni-ctl {
+  display: block;
+  user-select: none;
+}
+
+.nuni-ctl-label {
+  display: block;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.004em;
+  color: var(--nuni-label);
+  transition: color 130ms ease;
+}
+.nuni-ctl:hover .nuni-ctl-label,
+.nuni-ctl:focus-within .nuni-ctl-label {
+  color: var(--nuni-ink);
+}
+
+/* the strip the readout floats in, so nothing reflows as the number
+   changes width */
+.nuni-ctl-readout {
+  display: block;
+  position: relative;
+  height: 13px;
+  margin-top: 5px;
+}
+
+.nuni-ctl-value {
+  position: absolute;
+  top: 0;
+  /* dead centre of the handle: the track insets the thumb by half its
+     own width at each end, and the readout has to inset with it */
+  left: calc(var(--nuni-thumb-size) / 2 + (100% - var(--nuni-thumb-size)) * var(--p));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  font-size: 12.5px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--nuni-ink);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: color 130ms ease;
+}
+.nuni-ctl-unit {
+  font-size: 9.5px;
+  color: var(--nuni-mute);
+}
+
+.nuni-ctl-track {
+  display: block;
+  position: relative;
+  margin-top: 1px;
+}
+
+/* centre mark on anything that runs either side of zero */
+.nuni-ctl-track[data-zero]::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: calc(var(--nuni-thumb-size) / 2 + (100% - var(--nuni-thumb-size)) * var(--z));
+  width: 1px;
+  height: 7px;
+  margin-top: -3.5px;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
 .nuni-range {
   -webkit-appearance: none;
   appearance: none;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.16);
+  display: block;
+  width: 100%;
+  /* a 3px rail is the right look and a terrible target, so the input is
+     tall and the rail is drawn inside it */
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  background: none;
   outline: none;
   cursor: grab;
+  touch-action: none;
 }
 .nuni-range:active {
   cursor: grabbing;
 }
+
+.nuni-range::-webkit-slider-runnable-track {
+  height: var(--nuni-rail-h);
+  border-radius: 999px;
+  background:
+    linear-gradient(
+        to right,
+        transparent 0
+          calc(var(--nuni-thumb-size) / 2 + (100% - var(--nuni-thumb-size)) * var(--a)),
+        var(--nuni-live)
+          calc(var(--nuni-thumb-size) / 2 + (100% - var(--nuni-thumb-size)) * var(--a))
+          calc(var(--nuni-thumb-size) / 2 + (100% - var(--nuni-thumb-size)) * var(--b)),
+        transparent
+          calc(var(--nuni-thumb-size) / 2 + (100% - var(--nuni-thumb-size)) * var(--b)) 100%
+      )
+      no-repeat,
+    var(--nuni-rail);
+  transition: background-color 130ms ease;
+}
+
 .nuni-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 11px;
-  height: 11px;
+  width: var(--nuni-thumb-size);
+  height: var(--nuni-thumb-size);
   border-radius: 50%;
-  background: #f2f0ec;
   border: none;
-  margin-top: -5px;
-  transition: background 120ms ease;
+  background: var(--nuni-thumb);
+  margin-top: calc((var(--nuni-rail-h) - var(--nuni-thumb-size)) / 2);
+  /* a dark ring so the handle still reads where it sits on its own fill */
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 1px 3px rgba(0, 0, 0, 0.55);
+  transition:
+    background 130ms ease,
+    box-shadow 130ms ease,
+    transform 130ms ease;
 }
-.nuni-range:hover::-webkit-slider-thumb {
-  background: #fda4af;
+
+.nuni-range::-moz-range-track {
+  height: var(--nuni-rail-h);
+  border-radius: 999px;
+  background: var(--nuni-rail);
 }
-.nuni-range:active::-webkit-slider-thumb {
-  background: #fb7185;
+.nuni-range::-moz-range-progress {
+  height: var(--nuni-rail-h);
+  border-radius: 999px;
+  background: var(--nuni-live);
 }
 .nuni-range::-moz-range-thumb {
-  width: 11px;
-  height: 11px;
+  width: var(--nuni-thumb-size);
+  height: var(--nuni-thumb-size);
   border-radius: 50%;
-  background: #f2f0ec;
   border: none;
+  background: var(--nuni-thumb);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+/* Touching it lights the whole control, which is what makes it read as
+   live from the back of a room. */
+.nuni-ctl:hover .nuni-range::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+.nuni-ctl:hover,
+.nuni-ctl:focus-within {
+  --nuni-live: #e6dfd2;
+}
+.nuni-ctl:active {
+  --nuni-live: var(--nuni-accent);
+}
+.nuni-ctl:active .nuni-ctl-value {
+  color: var(--nuni-accent);
+}
+.nuni-range:active::-webkit-slider-thumb,
+.nuni-range:focus-visible::-webkit-slider-thumb {
+  background: var(--nuni-accent);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 0 5px rgba(251, 113, 133, 0.16);
+}
+.nuni-range:active::-moz-range-thumb {
+  background: var(--nuni-accent);
 }

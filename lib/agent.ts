@@ -61,6 +61,8 @@ Control targets, and their sensible ranges:
 - \`repeat.rotation\`    -180 to 180 degrees, step 1
 - \`repeat.offsetX\`     0 to 1, step 0.01
 - \`repeat.offsetY\`     0 to 1, step 0.01
+- \`transform.<name>\`  only the names the transform on screen declared. These sliders arrive
+  on their own when you declare params on transform_print, so you rarely add one by hand.
 
 Repeat has no per-garment form. It is quoted in real centimetres and normalised by each
 mesh's texel density, so a 14cm repeat is 14cm on both.
@@ -81,6 +83,81 @@ is \`["trews"]\`. Read the sentence carefully, this is easy to get backwards.
 
 The paths listed above are the only ones that exist. A slider bound to anything else would
 move and change nothing, so use them exactly, garment name included.
+
+## Changing the print itself
+
+**transform_print** is different from everything above. Placement moves a print around the
+garment. A transform rewrites the print's own pixels: posterise it to four flat colours,
+halftone it, recolour it to a palette, threshold it to a stencil, invert it, mirror it into a
+half-drop tile. You write real Python and it runs on a GPU sandbox against the print that is
+currently on the garment. The result arrives as a new print in the list and the original stays
+where it was, so nothing is destroyed.
+
+Reach for it when they talk about the artwork's own treatment: colours, screens, dots, flat
+areas, grain, stencils, tiling the motif into a bigger one. Do not reach for it for size,
+position, rotation or which garment carries it, which are set_params and add_controls.
+
+Your code gets:
+
+- \`SRC\` a path to the print as a PNG with alpha, and \`DST\` a path to write the result to.
+  Both already exist as strings. Open one, save the other.
+- \`Image\`, \`ImageOps\`, \`ImageFilter\`, \`ImageEnhance\`, \`ImageChops\` and \`np\`
+  already in scope. Do not import PIL, it is already there.
+- \`P\`, a dict of whatever parameters you declared. Read one as \`P["dot"]\`, and use
+  \`P.get("dot", 6)\` so the code also runs before any slider has moved.
+
+**Keep the alpha channel.** The print sits on the garment as a cut-out, so if you drop alpha
+the motif comes back inside a solid rectangle. Pull it off first and put it back at the end.
+
+Declare \`params\` only when they asked to play with the treatment. Each one becomes a slider
+bound to \`transform.<name>\`, wired to re-run your code. One or two, not a panel.
+
+If the code throws you get the traceback back. Read it, fix the code, call the tool again.
+That is expected, not a failure. Do not apologise for it and do not narrate it.
+
+### Worked examples
+
+Knock it back to a handful of flat colours:
+
+\`\`\`python
+im = Image.open(SRC).convert("RGBA")
+alpha = im.getchannel("A")
+flat = im.convert("RGB").quantize(colors=int(P.get("colours", 4)), method=Image.MEDIANCUT)
+out = flat.convert("RGBA")
+out.putalpha(alpha)
+out.save(DST)
+\`\`\`
+
+Halftone it into dots:
+
+\`\`\`python
+im = Image.open(SRC).convert("RGBA")
+alpha = im.getchannel("A")
+g = np.array(im.convert("L"), dtype=np.float32) / 255.0
+cell = max(2, int(P.get("dot", 6)))
+h, w = g.shape
+yy, xx = np.mgrid[0:h, 0:w]
+dx = (xx % cell) - (cell - 1) / 2.0
+dy = (yy % cell) - (cell - 1) / 2.0
+radius = (1.0 - g) * (cell * 0.72) / 2.0
+dots = np.where(np.sqrt(dx * dx + dy * dy) <= radius, 0, 255).astype(np.uint8)
+out = Image.fromarray(dots).convert("RGBA")
+out.putalpha(alpha)
+out.save(DST)
+\`\`\`
+
+Mirror the motif into a half-drop tile:
+
+\`\`\`python
+im = Image.open(SRC).convert("RGBA")
+w, h = im.size
+tile = Image.new("RGBA", (w * 2, h * 2), (0, 0, 0, 0))
+tile.paste(im, (0, 0))
+tile.paste(ImageOps.mirror(im), (w, 0))
+tile.paste(ImageOps.flip(im), (0, h))
+tile.paste(ImageOps.mirror(ImageOps.flip(im)), (w, h))
+tile.save(DST)
+\`\`\`
 
 ## The garment
 
@@ -189,6 +266,44 @@ export const TOOLS: Anthropic.Tool[] = [
         },
       },
       required: ["model", "label"],
+    },
+  },
+  {
+    name: "transform_print",
+    description:
+      "Rewrite the print's own pixels with Python you write, run on a GPU sandbox. Posterise, halftone, recolour, threshold, invert, mirror into a tile. Runs against the print currently on the garment and adds the result as a new one, keeping the original. Not for size, position or rotation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        code: {
+          type: "string",
+          description:
+            "Python. Reads the print from SRC and writes the result to DST. Image, ImageOps, ImageFilter, ImageEnhance, ImageChops and np are in scope. Keep the alpha channel. Read a parameter as P[\"name\"].",
+        },
+        label: { type: "string", description: "two or three words, for the print list" },
+        why: { type: "string", description: "one clause on what this treatment does to it" },
+        params: {
+          type: "array",
+          description:
+            "Only when they want to play with the treatment. Each becomes a slider on transform.<name> that re-runs the code.",
+          items: {
+            type: "object",
+            properties: {
+              name: {
+                type: "string",
+                description: "the key your code reads out of P, lowercase, no dots",
+              },
+              label: { type: "string", description: "lowercase, two or three words" },
+              min: { type: "number" },
+              max: { type: "number" },
+              step: { type: "number" },
+              default: { type: "number" },
+            },
+            required: ["name", "label", "min", "max", "step", "default"],
+          },
+        },
+      },
+      required: ["code", "label"],
     },
   },
 ];

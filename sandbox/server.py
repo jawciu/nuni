@@ -78,6 +78,62 @@ def isolate(job: Job):
         "size": list(out.size),
     }
 
+class Transform(BaseModel):
+    image_b64: str
+    code: str
+    params: dict = {}
+
+
+@app.post("/transform")
+def transform(job: Transform):
+    """Run model-written image code against the print.
+
+    The code arrives from a language model, which is the whole reason it runs here and not
+    in the browser or on the app server. It gets the source image, a destination path and
+    whatever parameters the model exposed as sliders, and nothing else that matters.
+    """
+    import tempfile, traceback
+
+    t0 = time.perf_counter()
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "in.png")
+        dst = os.path.join(tmp, "out.png")
+        with open(src, "wb") as f:
+            f.write(base64.b64decode(job.image_b64))
+
+        import numpy
+        from PIL import Image as PILImage, ImageChops, ImageEnhance, ImageFilter, ImageOps
+
+        scope = {
+            "SRC": src,
+            "DST": dst,
+            "P": dict(job.params),
+            "Image": PILImage,
+            "ImageOps": ImageOps,
+            "ImageFilter": ImageFilter,
+            "ImageEnhance": ImageEnhance,
+            "ImageChops": ImageChops,
+            "np": numpy,
+            "numpy": numpy,
+        }
+        try:
+            exec(job.code, scope)
+        except Exception:
+            return {"error": traceback.format_exc(limit=3)[-1200:]}
+
+        if not os.path.exists(dst):
+            return {"error": "the code ran but wrote nothing to DST"}
+
+        out = PILImage.open(dst).convert("RGBA")
+        buf = io.BytesIO()
+        out.save(buf, format="PNG")
+        return {
+            "png_b64": base64.b64encode(buf.getvalue()).decode(),
+            "ms": round((time.perf_counter() - t0) * 1000),
+            "size": list(out.size),
+        }
+
+
 @app.on_event("startup")
 def warm():
     get("birefnet")

@@ -6,7 +6,7 @@ export type Print = {
   id: string;
   url: string; // PNG with alpha, data: or blob:
   label: string;
-  source: "generated" | "isolated" | "uploaded";
+  source: "generated" | "isolated" | "uploaded" | "transformed";
   note?: string; // why the agent cut it the way it did
 };
 
@@ -33,6 +33,30 @@ export type Params = {
   repeat: Repeat;
   targets: GarmentId[]; // which garments carry the print
   colours: Record<GarmentId, string>; // the garment itself, before any print
+  /** Live values for whatever the current print transform exposed. The agent names these
+   *  itself, so the shape is open: a slider binds to `transform.<name>`. */
+  transform: Record<string, number>;
+};
+
+/** A parameter the model's transform code exposed, read inside that code as P["name"]. */
+export type TransformParam = {
+  name: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+};
+
+/** The print transform currently on screen: the Python the model wrote, and the print it
+ *  runs against. The source never changes as sliders move, or each drag would compound on
+ *  the last output instead of re-cutting the original. */
+export type ActiveTransform = {
+  sourcePrintId: string;
+  outputPrintId: string;
+  code: string;
+  label: string;
+  params: Record<string, number>;
 };
 
 /** A control the agent decided you needed. Materialises as a slider. */
@@ -62,6 +86,7 @@ export const DEFAULT_PARAMS: Params = {
   repeat: { scale: 14, rotation: 0, offsetX: 0, offsetY: 0 },
   targets: ["tee"],
   colours: { tee: "#eae5dd", trews: "#3d4350" },
+  transform: {},
 };
 
 /** Every path a control is allowed to bind to. An invented target would produce a slider
@@ -82,8 +107,17 @@ export const CONTROL_TARGETS = [
   "repeat.offsetY",
 ] as const;
 
-export type ControlTarget = (typeof CONTROL_TARGETS)[number];
+export type ControlTarget = (typeof CONTROL_TARGETS)[number] | `transform.${string}`;
+
+/** Transform params are the one open-ended family: the model names them when it writes the
+ *  code, so they cannot be listed ahead of time. The name still has to be a plain
+ *  identifier, so a path cannot reach anywhere else in the params object. */
+const TRANSFORM_TARGET = /^transform\.[a-z][a-z0-9_]*$/i;
+
+export function isTransformTarget(t: string): t is `transform.${string}` {
+  return TRANSFORM_TARGET.test(t);
+}
 
 export function isControlTarget(t: string): t is ControlTarget {
-  return (CONTROL_TARGETS as readonly string[]).includes(t);
+  return (CONTROL_TARGETS as readonly string[]).includes(t) || isTransformTarget(t);
 }

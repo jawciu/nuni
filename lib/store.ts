@@ -1,6 +1,13 @@
 "use client";
 import { create } from "zustand";
-import { ChatMsg, ControlSpec, DEFAULT_PARAMS, Params, Print } from "./types";
+import {
+  ActiveTransform,
+  ChatMsg,
+  ControlSpec,
+  DEFAULT_PARAMS,
+  Params,
+  Print,
+} from "./types";
 
 type State = {
   params: Params;
@@ -12,12 +19,16 @@ type State = {
   status: string | null;
   reference: string | null; // uploaded photo, before isolation
   sandbox: { id: string; url: string } | null;
+  /** The model-written transform currently driving the sliders, or null when the print is
+   *  whatever came out of generation or isolation. */
+  transform: ActiveTransform | null;
 
   setParams: (patch: Partial<Params>) => void;
   setAt: (path: string, value: number) => void;
   addControls: (c: ControlSpec[]) => void;
   clearControls: () => void;
   addPrint: (p: Print) => void;
+  updatePrint: (id: string, patch: Partial<Print>) => void;
   removePrint: (id: string) => void;
   setActivePrint: (id: string | null) => void;
   push: (m: ChatMsg) => void;
@@ -25,6 +36,7 @@ type State = {
   setBusy: (b: boolean, status?: string | null) => void;
   setReference: (url: string | null) => void;
   setSandbox: (s: { id: string; url: string } | null) => void;
+  setTransform: (t: ActiveTransform | null) => void;
 };
 
 /** Write a dotted path into a nested object without mutating the original. */
@@ -54,9 +66,20 @@ export const useStore = create<State>((set) => ({
   status: null,
   reference: null,
   sandbox: null,
+  transform: null,
 
   setParams: (patch) => set((s) => ({ params: { ...s.params, ...patch } })),
-  setAt: (path, value) => set((s) => ({ params: writePath(s.params, path, value) })),
+  setAt: (path, value) =>
+    set((s) => {
+      const params = writePath(s.params, path, value);
+      // the transform carries its own copy of the values, because the re-run needs them
+      // together with the code that reads them
+      const transform =
+        s.transform && path.startsWith("transform.")
+          ? { ...s.transform, params: { ...s.transform.params, [path.slice(10)]: value } }
+          : s.transform;
+      return { params, transform };
+    }),
   addControls: (c) =>
     set((s) => {
       // replacing by id means "give me a bigger range for size" swaps the slider
@@ -66,6 +89,8 @@ export const useStore = create<State>((set) => ({
     }),
   clearControls: () => set({ controls: [] }),
   addPrint: (p) => set((s) => ({ prints: [...s.prints, p], activePrintId: p.id })),
+  updatePrint: (id, patch) =>
+    set((s) => ({ prints: s.prints.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
   removePrint: (id) =>
     set((s) => {
       const prints = s.prints.filter((p) => p.id !== id);
@@ -88,6 +113,18 @@ export const useStore = create<State>((set) => ({
   setBusy: (busy, status = null) => set({ busy, status }),
   setReference: (reference) => set({ reference }),
   setSandbox: (sandbox) => set({ sandbox }),
+  setTransform: (t) =>
+    set((s) => ({
+      transform: t,
+      // seed the live values so a slider has something to read the moment it appears
+      params: { ...s.params, transform: t ? { ...t.params } : {} },
+      // a slider left over from the previous transform would read a value nothing writes
+      controls: s.controls.filter(
+        (c) =>
+          !c.target.startsWith("transform.") ||
+          (t ? c.target.slice(10) in t.params : false),
+      ),
+    })),
 }));
 
 // a handle for driving the scene from the console while building

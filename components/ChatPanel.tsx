@@ -2,8 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { warmSandbox } from "@/lib/sandbox-client";
-import { CONTROL_TARGETS, ControlSpec, isControlTarget } from "@/lib/types";
-import { Controls } from "./Controls";
+import {
+  CONTROL_TARGETS,
+  ControlSpec,
+  TransformParam,
+  isControlTarget,
+} from "@/lib/types";
 
 type Block =
   | { type: "text"; text: string }
@@ -14,6 +18,38 @@ type Turn = { role: "user" | "assistant"; content: unknown };
 /** Behind every swatch, so you can see what is actually transparent rather than guessing. */
 const CHECKER =
   "repeating-conic-gradient(#2a2724 0% 25%, #1e1c1a 0% 50%)";
+
+/** Whatever a print is behind the scenes, as bare base64 the sandbox can read. */
+async function urlToB64(url: string): Promise<string> {
+  if (url.startsWith("data:")) return url.split(",")[1];
+  const blob = await fetch(url).then((r) => r.blob());
+  return new Promise<string>((res) => {
+    const fr = new FileReader();
+    fr.onload = () => res((fr.result as string).split(",")[1]);
+    fr.readAsDataURL(blob);
+  });
+}
+
+type TransformResult = {
+  pngB64?: string;
+  ms?: number;
+  size?: [number, number];
+  codeError?: string;
+  error?: string;
+};
+
+function postTransform(
+  id: string,
+  imageB64: string,
+  code: string,
+  params: Record<string, number>,
+): Promise<TransformResult> {
+  return fetch("/api/transform", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, imageB64, code, params }),
+  }).then((x) => x.json());
+}
 
 const OPENERS = [
   "generate a print of koi carp in bleached indigo and put it on the tee",
@@ -30,14 +66,25 @@ export function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const refB64 = useRef<string | null>(null);
+  // the warm-up starts on page load and takes a moment. Someone who types straight away
+  // should wait for it, not be told to come back later.
+  const warming = useRef<Promise<{ id: string; url: string | null } | null> | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hinted, setHinted] = useState(false);
+  // the print the transform runs against, held once. Every re-run goes back to this, never
+  // to the last output, or four drags of a posterise slider leave four colours of mush.
+  const transformSrc = useRef<string | null>(null);
+  const ranWith = useRef<string | null>(null); // the values the last run used
+  const running = useRef(false);
 
   useEffect(() => {
-    warmSandbox((step) => useStore.getState().setBusy(true, step)).then((s) => {
-      useStore.getState().setBusy(false, null);
-      if (s) useStore.getState().setSandbox({ id: s.id, url: s.url ?? "" });
-    });
+    warming.current = warmSandbox((step) => useStore.getState().setBusy(true, step)).then(
+      (s) => {
+        useStore.getState().setBusy(false, null);
+        if (s) useStore.getState().setSandbox({ id: s.id, url: s.url ?? "" });
+        return s;
+      },
+    );
   }, []);
 
   useEffect(() => {
@@ -56,6 +103,53 @@ export function ChatPanel() {
   useEffect(() => {
     if (!hinted && store.prints.length > 0) setHinted(true);
   }, [store.prints.length, hinted]);
+
+  // a transform slider is a round trip to a gpu, so wait for the hand to settle first
+  const transformValues = JSON.stringify(store.params.transform);
+  useEffect(() => {
+    if (!useStore.getState().transform || !transformSrc.current) return;
+    if (ranWith.current === transformValues) return;
+    const timer = setTimeout(() => void rerunTransform(), 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transformValues]);
+
+  /** The warm-up is already in flight when the page loads, so wait on it rather than
+   *  telling someone who typed straight away to come back later. */
+  async function ensureSandbox(): Promise<string | null> {
+    const id = useStore.getState().sandbox?.id;
+    if (id) return id;
+    useStore.getState().setBusy(true, "waiting for the gpu");
+    return (await warming.current)?.id ?? useStore.getState().sandbox?.id ?? null;
+  }
+
+  /** A slider moved, so run the same code again with the new numbers. Always against the
+   *  print the transform was built from, never against its own last output. */
+  async function rerunTransform() {
+    const st = useStore.getState();
+    const t = st.transform;
+    const src = transformSrc.current;
+    if (!t || !src || running.current) return;
+    const id = st.sandbox?.id;
+    if (!id) return;
+
+    const values = { ...st.params.transform };
+    ranWith.current = JSON.stringify(values);
+    running.current = true;
+    st.setBusy(true, `re-running ${t.label}`);
+    const r = await postTransform(id, src, t.code, values);
+    running.current = false;
+    useStore.getState().setBusy(false, null);
+
+    if (r.pngB64) {
+      useStore
+        .getState()
+        .updatePrint(t.outputPrintId, { url: `data:image/png;base64,${r.pngB64}` });
+    }
+    // the slider may well have moved again while that was in the air
+    const now = JSON.stringify(useStore.getState().params.transform);
+    if (now !== ranWith.current) void rerunTransform();
+  }
 
   /** Runs one tool the model asked for and hands back what to tell it. */
   async function runTool(name: string, input: Record<string, unknown>) {
@@ -125,13 +219,22 @@ export function ChatPanel() {
 
     if (name === "isolate_print") {
       if (!refB64.current) return { ok: false, error: "no reference photo uploaded yet" };
-      if (!s.sandbox?.id) return { ok: false, error: "the gpu sandbox is not up yet" };
+
+      let sandboxId = s.sandbox?.id;
+      if (!sandboxId) {
+        s.setBusy(true, "waiting for the gpu");
+        sandboxId = (await warming.current)?.id ?? useStore.getState().sandbox?.id;
+      }
+      if (!sandboxId) {
+        return { ok: false, error: "the gpu sandbox could not be reached" };
+      }
+
       s.setBusy(true, `cutting it out with ${input.model}`);
       const r = await fetch("/api/isolate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: s.sandbox.id,
+          id: sandboxId,
           imageB64: refB64.current,
           model: input.model,
         }),
@@ -146,6 +249,79 @@ export function ChatPanel() {
         note: input.why as string,
       });
       return { ok: true, ms: r.ms, size: r.size };
+    }
+
+    if (name === "transform_print") {
+      const src = s.prints.find((p) => p.id === s.activePrintId);
+      if (!src) {
+        return { ok: false, error: "there is no print on the garment to transform yet" };
+      }
+
+      const sandboxId = await ensureSandbox();
+      if (!sandboxId) return { ok: false, error: "the gpu sandbox could not be reached" };
+
+      const code = String(input.code ?? "");
+      const label = (input.label as string) ?? "transformed";
+      const declared = ((input.params ?? []) as TransformParam[]).filter(
+        (p) => p && typeof p.name === "string" && isControlTarget(`transform.${p.name}`),
+      );
+      const values: Record<string, number> = {};
+      for (const p of declared) values[p.name] = Number(p.default ?? 0);
+
+      s.setBusy(true, "running your code on the gpu");
+      const b64 = await urlToB64(src.url);
+      const r = await postTransform(sandboxId, b64, code, values);
+      useStore.getState().setBusy(false, null);
+
+      if (r.codeError) {
+        // not a failure, this is the loop working. The traceback goes back to the model and
+        // it writes the next version itself.
+        return {
+          ok: false,
+          codeError: r.codeError,
+          hint: "that traceback is from the python you wrote. fix it and call transform_print again.",
+        };
+      }
+      if (r.error || !r.pngB64) return { ok: false, error: r.error ?? "no image came back" };
+
+      const outId = crypto.randomUUID();
+      useStore.getState().addPrint({
+        id: outId,
+        url: `data:image/png;base64,${r.pngB64}`,
+        label,
+        source: "transformed",
+        note: input.why as string,
+      });
+
+      transformSrc.current = b64;
+      ranWith.current = JSON.stringify(values);
+      useStore.getState().setTransform({
+        sourcePrintId: src.id,
+        outputPrintId: outId,
+        code,
+        label,
+        params: values,
+      });
+      if (declared.length) {
+        useStore.getState().addControls(
+          declared.map((p) => ({
+            id: `transform.${p.name}`,
+            label: p.label ?? p.name,
+            target: `transform.${p.name}`,
+            min: p.min,
+            max: p.max,
+            step: p.step,
+          })),
+        );
+      }
+
+      return {
+        ok: true,
+        ms: r.ms,
+        size: r.size,
+        note: "added as a new print, the original is still in the list",
+        controls: declared.map((p) => p.label),
+      };
     }
 
     return { ok: false, error: `no tool called ${name}` };
@@ -265,7 +441,7 @@ export function ChatPanel() {
           <div className="space-y-3 pt-1">
             <p className="text-[13px] leading-relaxed text-stone-500">
               Say what you want on the garment. Ask to play with something and the dial for it
-              turns up here.
+              turns up beside it.
             </p>
             <div className="space-y-1.5 pt-1">
               {OPENERS.map((o) => (
@@ -361,11 +537,9 @@ export function ChatPanel() {
         </div>
       )}
 
-      <Controls />
-
       {hinted && (
         <p className="px-5 pb-2 text-[11px] leading-snug text-stone-600">
-          Keep going. Ask for a change and the dial for it turns up under the chat.
+          Keep going. Ask for a change and the dial for it turns up beside the garment.
         </p>
       )}
 
