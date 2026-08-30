@@ -29,7 +29,7 @@ type State = {
   activeOptionId: string | null;
 
   setParams: (patch: Partial<Params>) => void;
-  setAt: (path: string, value: number) => void;
+  setAt: (path: string, value: number | string) => void;
   addControls: (c: ControlSpec[]) => void;
   clearControls: () => void;
   addPrint: (p: Print) => void;
@@ -94,7 +94,7 @@ export const useStore = create<State>((set) => ({
       // the transform carries its own copy of the values, because the re-run needs them
       // together with the code that reads them
       const transform =
-        s.transform && path.startsWith("transform.")
+        s.transform && path.startsWith("transform.") && typeof value === "number"
           ? { ...s.transform, params: { ...s.transform.params, [path.slice(10)]: value } }
           : s.transform;
       return { params, transform, activeOptionId: null };

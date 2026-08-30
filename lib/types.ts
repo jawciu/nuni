@@ -93,14 +93,20 @@ export type SavedOption = {
 };
 
 /** A control the agent decided you needed. Materialises as a slider. */
+export type ControlChoice = { value: string; label: string };
+
 export type ControlSpec = {
   id: string;
   label: string;
-  target: string; // dotted path into Params, e.g. "placement.size"
-  min: number;
-  max: number;
-  step: number;
+  target: string; // dotted path into Params, e.g. "placement.tee.size"
+  /** A slider is for a range. A choice is for the things with nothing in between,
+   *  like placed against repeat, where a dial would be a lie. */
+  kind?: "slider" | "choice";
+  min?: number;
+  max?: number;
+  step?: number;
   unit?: string;
+  options?: ControlChoice[];
 };
 
 export type ChatMsg = {
@@ -156,6 +162,22 @@ export function isTransformTarget(t: string): t is `transform.${string}` {
   return TRANSFORM_TARGET.test(t);
 }
 
+/** Targets that hold a word rather than a number, so they get a choice and not a slider. */
+export const CHOICE_TARGETS: Record<string, ControlChoice[]> = {
+  mode: [
+    { value: "placed", label: "placed" },
+    { value: "repeat", label: "repeat" },
+  ],
+};
+
+export function isChoiceTarget(t: string): boolean {
+  return t in CHOICE_TARGETS;
+}
+
 export function isControlTarget(t: string): t is ControlTarget {
-  return (CONTROL_TARGETS as readonly string[]).includes(t) || isTransformTarget(t);
+  return (
+    (CONTROL_TARGETS as readonly string[]).includes(t) ||
+    isTransformTarget(t) ||
+    isChoiceTarget(t)
+  );
 }

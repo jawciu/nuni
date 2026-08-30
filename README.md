@@ -3,8 +3,6 @@
 **A print studio for garments. Say what you want, and it lands on the garment in 3D with the
 controls you asked for.**
 
-Built in one day at the Daytona HackSprint, London, 30 August 2026.
-
 ---
 
 ## Why I built it
@@ -29,9 +27,11 @@ The two tools I actually use pull in opposite directions.
 | --- | --- | --- |
 | Photoshop | Exact control. Nudge a motif two millimetres, change one colour, hit the thing I pictured. Every tweak is reversible and mine. | Making anything new. Mixing two styles, building a technique by hand, trying a fifth colourway. All of it is manual, all of it is flat, and none of it is on a body. |
 | Nano Banana, ChatGPT and the rest | Ideas and generation. "Make this image in the style of this one" is one sentence and it works. | Tweaking. Moving a motif, resizing it, changing one colour all go back through words, and what comes back is a new image. My own artwork gets redrawn instead of edited. |
-| nuni | Both halves. Generate or restyle in a sentence, then drag real sliders, on the garment in 3D. Isolation keeps my pixels, colour is non-destructive, and every look can be kept and returned to. | Original artwork. It places, cuts and restyles what already exists, it does not draw from scratch, and the garment library is fixed at two. |
 
-So generation stays in language, where language works, and precision moves onto sliders.
+nuni does both. Generate or restyle in a sentence, then drag real sliders, on the garment in 3D.
+Isolation keeps my own pixels, colour is non-destructive, and every look can be kept and
+returned to. Generation stays in language, where language works, and precision moves onto
+sliders.
 
 ## What it does
 

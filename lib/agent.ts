@@ -165,6 +165,16 @@ panel of everything. Two or three at once is plenty. If they ask for one thing, 
 The same 0.15 is the hem of a cropped tee and the ankle of a trouser, so each garment carries
 its own numbers. Write \`tee\` or \`trews\` into the path.
 
+**Some controls are switches, not dials.** \`mode\` is placed or repeat with nothing in
+between, so it gets \`kind: "choice"\`. When someone asks to play with placed against repeat,
+to compare them, or simply asks for a toggle, build it:
+
+    { id: "mode", label: "print type", target: "mode", kind: "choice",
+      options: [{ value: "placed", label: "placed" }, { value: "repeat", label: "repeat" }] }
+
+Never tell them a control cannot exist because the thing is not a range. Give them the choice
+control instead. A choice takes no min, max or step.
+
 Control targets, and their sensible ranges:
 - \`placement.<garment>.across\`   -1 (left) to 1 (right), step 0.01
 - \`placement.<garment>.height\`   0 (hem) to 1 (shoulder or waistband), step 0.01
@@ -174,6 +184,7 @@ Control targets, and their sensible ranges:
 - \`repeat.rotation\`    -180 to 180 degrees, step 1
 - \`repeat.offsetX\`     0 to 1, step 0.01
 - \`repeat.offsetY\`     0 to 1, step 0.01
+- \`mode\`              a CHOICE, not a slider: placed or repeat
 - \`adjust.hue\`         -180 to 180 degrees, step 1, 0 unchanged
 - \`adjust.saturation\`  0 to 2, step 0.01, 1 unchanged
 - \`adjust.brightness\`  0 to 2, step 0.01, 1 unchanged
@@ -378,12 +389,30 @@ export const TOOLS: Anthropic.Tool[] = [
               id: { type: "string" },
               label: { type: "string", description: "lowercase, two or three words" },
               target: { type: "string" },
-              min: { type: "number" },
-              max: { type: "number" },
-              step: { type: "number" },
+              kind: {
+                type: "string",
+                enum: ["slider", "choice"],
+                description:
+                  "slider for a range, choice for a switch with nothing in between. Defaults to slider.",
+              },
+              min: { type: "number", description: "sliders only" },
+              max: { type: "number", description: "sliders only" },
+              step: { type: "number", description: "sliders only" },
               unit: { type: "string" },
+              options: {
+                type: "array",
+                description: "choice only, the buttons to show",
+                items: {
+                  type: "object",
+                  properties: {
+                    value: { type: "string" },
+                    label: { type: "string" },
+                  },
+                  required: ["value", "label"],
+                },
+              },
             },
-            required: ["id", "label", "target", "min", "max", "step"],
+            required: ["id", "label", "target"],
           },
         },
       },
