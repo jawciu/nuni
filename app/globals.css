@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+.nuni-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: #3a352f;
+  border-radius: 2px;
+  outline: none;
+}
+.nuni-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f2f0ec;
+  cursor: grab;
+  border: none;
+}
+.nuni-range::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  background: #fb7185;
+}
+.nuni-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f2f0ec;
+  border: none;
+  cursor: grab;
+}
