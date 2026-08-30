@@ -12,8 +12,10 @@ import { GarmentId, Params } from "@/lib/types";
  * box instead means "centred, a hand below the neck" lands in the same place on every
  * silhouette, and the numbers transfer between the tee and the trousers.
  *
- * Repeats are the opposite: they belong in UV/garment space, so they break at panel seams
- * the way a real printed garment does.
+ * Repeats wrap the body cylindrically rather than tiling the UV square. UV space is the
+ * packed sewing pattern, so tiling it restarts the motif at every panel edge and puts a hard
+ * seam straight down the centre front, where the two front panels meet. Wrapping around the
+ * body instead gives one seam at centre back, which is where a real garment has one.
  */
 
 const VERT_HEAD = /* glsl */ `
@@ -40,7 +42,8 @@ const FRAG_HEAD = /* glsl */ `
   uniform float uRot;
   uniform float uAspect;      // print w/h
   uniform float uFaceSign;    // which way the front of the garment looks
-  uniform float uRepeatCount; // tiles across the 0-1 UV square, density corrected
+  uniform float uRepeatSize;  // centimetres per tile, measured on the body
+  uniform float uRadius;      // mean distance from the body's axis, for arc length
   uniform float uRepeatRot;
   uniform vec2  uRepeatOffset;
   varying vec3 vLocalPos;
@@ -77,8 +80,17 @@ const FRAG_BODY = /* glsl */ `
         }
       }
     } else {
-      vec2 t = rot2(vNuniUv - 0.5, uRepeatRot) + 0.5;
-      ink = texture2D(uPrint, t * uRepeatCount + uRepeatOffset);
+      // wrap the tile grid around the body's vertical axis: arc length across, height up.
+      // A planar projection would smear badly down the sides and the sleeves.
+      vec3 c = uBoxMin + uBoxSize * 0.5;
+      float ang = atan(vLocalPos.z - c.z, vLocalPos.x - c.x);
+      float tile = max(uRepeatSize, 0.001);
+      vec2 q = vec2(
+        (ang * uRadius) / tile,
+        ((vLocalPos.y - uBoxMin.y) * uAspect) / tile
+      );
+      q = rot2(q, uRepeatRot);
+      ink = texture2D(uPrint, fract(q + uRepeatOffset));
     }
 
     // transparent pixels carry black RGB, so a straight mix by alpha draws a dark
@@ -87,34 +99,6 @@ const FRAG_BODY = /* glsl */ `
     diffuseColor.rgb = mix(diffuseColor.rgb, ink.rgb, a);
   }
 `;
-
-/** UV units per centimetre. Each garment is unwrapped into its own 0-1 square, so the tee
- *  and the trousers do not share a texel density (measured 2.14 : 1). Deriving it from the
- *  mesh means a repeat comes out the same size on both without anyone hand-tuning a look. */
-function texelDensity(geo: THREE.BufferGeometry): number {
-  const pos = geo.attributes.position as THREE.BufferAttribute;
-  const uv = geo.attributes.uv as THREE.BufferAttribute;
-  if (!uv) return 1;
-  const idx = geo.index;
-  const n = idx ? idx.count : pos.count;
-  let uvArea = 0;
-  let area3 = 0;
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), cr = new THREE.Vector3();
-  for (let i = 0; i < n; i += 3) {
-    const i0 = idx ? idx.getX(i) : i, i1 = idx ? idx.getX(i + 1) : i + 1, i2 = idx ? idx.getX(i + 2) : i + 2;
-    a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2);
-    ab.subVectors(b, a); ac.subVectors(c, a);
-    area3 += cr.crossVectors(ab, ac).length() * 0.5;
-    const u0 = uv.getX(i0), v0 = uv.getY(i0);
-    const u1 = uv.getX(i1), v1 = uv.getY(i1);
-    const u2 = uv.getX(i2), v2 = uv.getY(i2);
-    uvArea += Math.abs((u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0)) * 0.5;
-  }
-  if (area3 <= 0) return 1;
-  // geometry is in metres here; density is quoted per centimetre
-  return Math.sqrt(uvArea / area3) / 100;
-}
 
 export function Garment({
   id,
@@ -145,12 +129,13 @@ export function Garment({
     uRot: { value: 0 },
     uAspect: { value: 1 },
     uFaceSign: { value: 1 },
-    uRepeatCount: { value: 6 },
+    uRepeatSize: { value: 0.14 },
+    uRadius: { value: 0.2 },
     uRepeatRot: { value: 0 },
     uRepeatOffset: { value: new THREE.Vector2() },
   });
 
-  const { geometry, box, density } = useMemo(() => {
+  const { geometry, box, radius } = useMemo(() => {
     let geo: THREE.BufferGeometry | null = null;
     scene.updateMatrixWorld(true);
     scene.traverse((o) => {
@@ -165,7 +150,16 @@ export function Garment({
     // the sim OBJ carries no vertex normals, so without this the garment renders flat and faceted
     if (!g.attributes.normal) g.computeVertexNormals();
     g.computeBoundingBox();
-    return { geometry: g, box: g.boundingBox!, density: texelDensity(g) };
+    const bb = g.boundingBox!;
+    const mid = bb.getCenter(new THREE.Vector3());
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    let sum = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const dx = pos.getX(i) - mid.x;
+      const dz = pos.getZ(i) - mid.z;
+      sum += Math.hypot(dx, dz);
+    }
+    return { geometry: g, box: bb, radius: sum / Math.max(1, pos.count) };
   }, [scene]);
 
   const material = useMemo(() => {
@@ -178,6 +172,7 @@ export function Garment({
     m.onBeforeCompile = (shader) => {
       uniforms.current.uBoxMin.value = box.min.clone();
       uniforms.current.uBoxSize.value = box.getSize(new THREE.Vector3());
+      uniforms.current.uRadius.value = radius;
       Object.assign(shader.uniforms, uniforms.current);
 
       shader.vertexShader = shader.vertexShader
@@ -189,7 +184,7 @@ export function Garment({
     };
     m.customProgramCacheKey = () => `nuni-${id}`;
     return m;
-  }, [box, id]);
+  }, [box, id, radius]);
 
   useEffect(() => {
     const u = uniforms.current;
@@ -205,13 +200,13 @@ export function Garment({
     u.uRot.value = (place.rotation * Math.PI) / 180;
     u.uRepeatRot.value = (params.repeat.rotation * Math.PI) / 180;
     u.uRepeatOffset.value.set(params.repeat.offsetX, params.repeat.offsetY);
-    // tiles across the UV square for a motif `scale` centimetres wide
-    u.uRepeatCount.value = 1 / Math.max(0.001, params.repeat.scale * density);
+    // the meshes are in metres and the repeat is quoted in centimetres
+    u.uRepeatSize.value = Math.max(0.02, params.repeat.scale) / 100;
     if (printTex?.image) {
       const im = printTex.image as { width: number; height: number };
       u.uAspect.value = im.width / im.height || 1;
     }
-  }, [params, printTex, id, density]);
+  }, [params, printTex, id]);
 
   return (
     <mesh geometry={geometry} material={material} castShadow receiveShadow scale={1 + lift} />
