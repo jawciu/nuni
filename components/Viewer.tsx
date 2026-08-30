@@ -12,15 +12,16 @@ import * as THREE from "three";
 import { Garment } from "./Garment";
 import { useStore } from "@/lib/store";
 
-useGLTF.preload("/assets/body.glb");
+useGLTF.preload("/assets/figure.glb");
 useGLTF.preload("/assets/tee.glb");
 useGLTF.preload("/assets/trews.glb");
 
-function Body() {
-  const { scene } = useGLTF("/assets/body.glb");
-  // the same skin she was picked in, makeup painted into the map. The mesh keeps its
-  // MakeHuman UVs through the OBJ and GLB round trip, so this lands without any fitting.
-  const skin = useTexture("/assets/skin.png");
+function Figure() {
+  // body, eyes, brows, lashes and hair. The hair and eye maps ride in the GLB; the skin
+  // does not, because MakeHuman's skin material does not survive a glTF export, so it is
+  // applied here against the mesh's own MakeHuman UVs.
+  const { scene } = useGLTF("/assets/figure.glb");
+  const skin = useTexture("/assets/skin.jpg");
 
   const cloned = useMemo(() => {
     skin.flipY = false;
@@ -32,14 +33,43 @@ function Body() {
     s.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
-      m.geometry.computeVertexNormals();
-      m.material = new THREE.MeshStandardMaterial({
-        map: skin,
-        // skin is never shiny across the whole face, and a broad soft highlight reads far
-        // better than a wet one
-        roughness: 0.62,
-        metalness: 0,
-      });
+      const isBody = /^human$|base/i.test(m.name);
+      if (isBody) {
+        m.material = new THREE.MeshStandardMaterial({
+          map: skin,
+          roughness: 0.62,
+          metalness: 0,
+        });
+        m.castShadow = true;
+        m.receiveShadow = true;
+        return;
+      }
+      const mat = m.material as THREE.MeshStandardMaterial;
+      if (mat?.map) {
+        mat.map.colorSpace = THREE.SRGBColorSpace;
+        mat.map.anisotropy = 8;
+      }
+      const hairish = /hair|eyelash|eyebrow/i.test(m.name + " " + (mat?.name ?? ""));
+      if (hairish) {
+        // hair, lashes and brows are alpha-cut cards. Blended they sort wrongly against
+        // themselves and the head shows through; a hard cutout has no sort order at all.
+        mat.transparent = false;
+        mat.alphaTest = 0.18;
+        mat.depthWrite = true;
+        mat.side = THREE.DoubleSide;
+        // the maps are warm brown rather than neutral, so tinting only darkens. Sheen and
+        // a hot specular blow every outward facing strand white and lose the colour.
+        mat.color.set(/hair/i.test(m.name) ? "#4a3327" : "#2e211a");
+        // a hot specular turns every outward facing strand silver and the colour
+        // disappears entirely. Hair wants a broad soft highlight, not a wet one.
+        mat.roughness = 0.78;
+        mat.metalness = 0;
+        mat.envMapIntensity = 0.3;
+      } else {
+        mat.roughness = 0.62;
+        mat.metalness = 0;
+      }
+      mat.needsUpdate = true;
       m.castShadow = true;
       m.receiveShadow = true;
     });
@@ -124,7 +154,7 @@ export function Viewer() {
         <directionalLight position={[0, 1.4, -3]} intensity={0.75} color="#ffd9b8" />
         <Suspense fallback={null}>
           <group position={[0, -0.9, 0]}>
-            <Body />
+            <Figure />
             <Garment id="tee" url="/assets/tee.glb" params={params} printTex={tex} lift={0.007} />
             <Garment id="trews" url="/assets/trews.glb" params={params} printTex={tex} />
             <ContactShadows position={[0, 0.002, 0]} opacity={0.5} scale={4} blur={2.4} far={1.6} />
