@@ -18,6 +18,7 @@ type State = {
   addControls: (c: ControlSpec[]) => void;
   clearControls: () => void;
   addPrint: (p: Print) => void;
+  removePrint: (id: string) => void;
   setActivePrint: (id: string | null) => void;
   push: (m: ChatMsg) => void;
   patchLast: (m: Partial<ChatMsg>) => void;
@@ -65,6 +66,16 @@ export const useStore = create<State>((set) => ({
     }),
   clearControls: () => set({ controls: [] }),
   addPrint: (p) => set((s) => ({ prints: [...s.prints, p], activePrintId: p.id })),
+  removePrint: (id) =>
+    set((s) => {
+      const prints = s.prints.filter((p) => p.id !== id);
+      return {
+        prints,
+        // fall back to the most recent survivor rather than leaving the cloth bare
+        activePrintId:
+          s.activePrintId === id ? (prints.at(-1)?.id ?? null) : s.activePrintId,
+      };
+    }),
   setActivePrint: (id) => set({ activePrintId: id }),
   push: (m) => set((s) => ({ messages: [...s.messages, m] })),
   patchLast: (m) =>

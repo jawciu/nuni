@@ -9,30 +9,35 @@ body {
 .nuni-range {
   -webkit-appearance: none;
   appearance: none;
-  height: 2px;
-  background: #3a352f;
-  border-radius: 2px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
   outline: none;
+  cursor: grab;
+}
+.nuni-range:active {
+  cursor: grabbing;
 }
 .nuni-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #f2f0ec;
-  cursor: grab;
   border: none;
+  margin-top: -5px;
+  transition: background 120ms ease;
 }
-.nuni-range::-webkit-slider-thumb:active {
-  cursor: grabbing;
+.nuni-range:hover::-webkit-slider-thumb {
+  background: #fda4af;
+}
+.nuni-range:active::-webkit-slider-thumb {
   background: #fb7185;
 }
 .nuni-range::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #f2f0ec;
   border: none;
-  cursor: grab;
 }
