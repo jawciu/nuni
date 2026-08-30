@@ -1,7 +1,7 @@
 "use client";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, useGLTF } from "@react-three/drei";
+import { OrbitControls, ContactShadows, useGLTF, useProgress } from "@react-three/drei";
 import * as THREE from "three";
 import { Garment } from "./Garment";
 import { useStore } from "@/lib/store";
@@ -59,6 +59,26 @@ function usePrintTexture(url: string | null) {
   return tex;
 }
 
+/** The meshes are a megabyte and a half between them, so the first few seconds are a black
+ *  rectangle unless we say something. It is the first thing anyone sees. */
+function Loading() {
+  const { active, progress } = useProgress();
+  if (!active) return null;
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-16">
+      <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-stone-600">
+        <span className="h-px w-16 overflow-hidden bg-white/10">
+          <span
+            className="block h-px bg-stone-400 transition-[width] duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </span>
+        hanging the garments
+      </div>
+    </div>
+  );
+}
+
 export function Viewer() {
   const params = useStore((s) => s.params);
   const prints = useStore((s) => s.prints);
@@ -101,6 +121,7 @@ export function Viewer() {
           maxPolarAngle={Math.PI * 0.62}
         />
       </Canvas>
+      <Loading />
     </div>
   );
 }
