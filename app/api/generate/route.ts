@@ -8,7 +8,7 @@ const MODEL = process.env.NUNI_IMAGE_MODEL ?? "gpt-image-1-mini";
 
 /**
  * Generating a print. This one comes back already transparent, so it goes straight onto the
- * cloth and skips the cut-out step entirely. Two paths in, only one of them needs isolating.
+ * garment and skips the cut-out step entirely. Two paths in, only one of them needs isolating.
  */
 export async function POST(req: Request) {
   const { prompt, size = "1024x1024" } = await req.json();

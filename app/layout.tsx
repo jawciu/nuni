@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "nuni",
-  description: "Say what you want on the cloth and it builds you the controls to do it.",
+  description: "Say what you want on the garment and it builds you the controls to do it.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

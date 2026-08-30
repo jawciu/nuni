@@ -12,8 +12,8 @@ import { GarmentId, Params } from "@/lib/types";
  * box instead means "centred, a hand below the neck" lands in the same place on every
  * silhouette, and the numbers transfer between the tee and the trousers.
  *
- * Repeats are the opposite: they belong in UV/cloth space, so they break at panel seams the
- * way real printed cloth does.
+ * Repeats are the opposite: they belong in UV/garment space, so they break at panel seams
+ * the way a real printed garment does.
  */
 
 const VERT_HEAD = /* glsl */ `
@@ -54,7 +54,7 @@ const FRAG_HEAD = /* glsl */ `
 `;
 
 const FRAG_BODY = /* glsl */ `
-  // the cloth colour rides our own uniform rather than the material's. three caches the
+  // the garment colour rides our own uniform rather than the material's. three caches the
   // built-in diffuse uniform against the material version, so setting material.color after
   // the first compile never reaches the shader.
   diffuseColor.rgb = uCloth;
@@ -63,7 +63,7 @@ const FRAG_BODY = /* glsl */ `
     vec4 ink = vec4(0.0);
 
     if (uMode == 0) {
-      // only the side of the cloth facing the viewer's front takes the graphic
+      // only the side of the garment facing the viewer's front takes the graphic
       if (vLocalNormal.z * uFaceSign > 0.0) {
         float W = max(uBoxSize.x, 1e-5);
         float gx = (vLocalPos.x - (uBoxMin.x + uBoxSize.x * 0.5)) / W;
@@ -162,7 +162,7 @@ export function Garment({
       geo.applyMatrix4(m.matrixWorld);
     });
     const g = geo as unknown as THREE.BufferGeometry;
-    // the sim OBJ carries no vertex normals, so without this the cloth renders flat and faceted
+    // the sim OBJ carries no vertex normals, so without this the garment renders flat and faceted
     if (!g.attributes.normal) g.computeVertexNormals();
     g.computeBoundingBox();
     return { geometry: g, box: g.boundingBox!, density: texelDensity(g) };

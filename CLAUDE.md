@@ -65,6 +65,19 @@ Optional: `NUNI_IMAGE_MODEL` (default `gpt-image-1-mini`), `NUNI_MODEL` (default
   `trews.placement.height` unprompted, which would have produced a slider that moved and
   changed nothing. It is now told the target is unknown and asked again.
 
+## The figure
+
+Rebuilt by `scripts/figure_to_glb.py` (needs Blender + the MPFB2 add-on). Her spec, and it
+is not up for rediscovery: skin `toigo_light_skin_with_natural_makeup` (the makeup is painted
+into the map), hair `littleright_bobcut_hair` tinted `#3a2418` at gain ~1.2, eyes
+`high-poly`, brows `eyebrow010`, lashes `eyelashes01`. Arms drop **12 degrees, not 28** —
+28 is a render-only setting, and the garments were draped against the 12 degree body.
+
+## Vocabulary
+
+It is a **garment**, everywhere a user or a judge can see: the UI, the agent's replies, the
+docs, the code comments. Never "cloth", never "fabric". The agent is told this in its prompt.
+
 ## Traps, all paid for once already
 
 - **`gpuType` goes inside `resources`.** At the top level it is silently ignored and you get
@@ -81,6 +94,16 @@ Optional: `NUNI_IMAGE_MODEL` (default `gpt-image-1-mini`), `NUNI_MODEL` (default
   washed out.
 - **Cut-outs need an alpha threshold.** Transparent pixels carry black RGB, so mixing straight
   by alpha draws a dark rectangle round the motif.
+- **A glTF export keeps textures and throws the node graph away.** MakeHuman's skin material
+  and the desaturate-then-tint hair graph both vanished on export, which is why the skin is
+  applied in the viewer and the hair tint is baked into `hair.png` offline. Do not fix a
+  material in Blender and expect it to survive.
+- **Hair silver is specular, not colour.** The hair map is nearly black (mean luminance 17
+  of 255), so anything silver on screen is pure highlight. `MeshStandardMaterial` gives no
+  way to turn the lobe down; use `MeshPhysicalMaterial` and cut `specularIntensity`. Lift the
+  map with a gain before tinting or the hair reads as a void.
+- **`alphaMap` reads the GREEN channel.** Feeding it a near-black hair map discards every
+  fragment and the hair disappears. The map's own alpha is already the mask.
 - **Playwright's screenshot times out on an animating canvas.** `preserveDrawingBuffer` is on,
   so grab `canvas.toDataURL()` instead. `shots/grab.sh` decodes it.
 

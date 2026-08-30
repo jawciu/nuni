@@ -22,12 +22,17 @@ function Figure() {
   // applied here against the mesh's own MakeHuman UVs.
   const { scene } = useGLTF("/assets/figure.glb");
   const skin = useTexture("/assets/skin.jpg");
+  // desaturated then tinted offline, because a glTF export keeps only the raw texture and
+  // throws the node graph that did the tinting away
+  const hairMap = useTexture("/assets/hair.png");
 
   const cloned = useMemo(() => {
-    skin.flipY = false;
-    skin.colorSpace = THREE.SRGBColorSpace;
-    skin.anisotropy = 8;
-    skin.needsUpdate = true;
+    for (const t of [skin, hairMap]) {
+      t.flipY = false;
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 8;
+      t.needsUpdate = true;
+    }
 
     const s = scene.clone(true);
     s.traverse((o) => {
@@ -49,7 +54,8 @@ function Figure() {
         mat.map.colorSpace = THREE.SRGBColorSpace;
         mat.map.anisotropy = 8;
       }
-      const hairish = /hair|eyelash|eyebrow/i.test(m.name + " " + (mat?.name ?? ""));
+      const isHair = /hair/i.test(m.name + " " + (mat?.name ?? ""));
+      const hairish = isHair || /eyelash|eyebrow/i.test(m.name + " " + (mat?.name ?? ""));
       if (hairish) {
         // hair, lashes and brows are alpha-cut cards. Blended they sort wrongly against
         // themselves and the head shows through; a hard cutout has no sort order at all.
@@ -59,12 +65,30 @@ function Figure() {
         mat.side = THREE.DoubleSide;
         // the maps are warm brown rather than neutral, so tinting only darkens. Sheen and
         // a hot specular blow every outward facing strand white and lose the colour.
-        mat.color.set(/hair/i.test(m.name) ? "#4a3327" : "#2e211a");
-        // a hot specular turns every outward facing strand silver and the colour
-        // disappears entirely. Hair wants a broad soft highlight, not a wet one.
-        mat.roughness = 0.78;
-        mat.metalness = 0;
-        mat.envMapIntensity = 0.3;
+        // A hot specular turns every outward facing strand silver and the colour
+        // disappears entirely: the map is nearly black, so anything silver on screen is
+        // pure highlight. Hair wants a broad soft highlight, not a wet one, and
+        // MeshStandardMaterial gives no way to turn the lobe down, so use the physical
+        // one and cut specularIntensity.
+        const soft = new THREE.MeshPhysicalMaterial({
+          // no alphaMap: three reads its GREEN channel, and these maps are nearly black,
+          // so every fragment would fail the cutout. The map's own alpha is the mask.
+          map: isHair ? hairMap : mat.map,
+          transparent: false,
+          alphaTest: 0.18,
+          depthWrite: true,
+          side: THREE.DoubleSide,
+          roughness: 0.5,
+          metalness: 0,
+          specularIntensity: 0.3,
+          sheen: 0,
+          envMapIntensity: 0.25,
+        });
+        if (!isHair) soft.color.set("#2e211a");
+        m.material = soft;
+        m.castShadow = true;
+        m.receiveShadow = true;
+        return;
       } else {
         mat.roughness = 0.62;
         mat.metalness = 0;
@@ -74,7 +98,7 @@ function Figure() {
       m.receiveShadow = true;
     });
     return s;
-  }, [scene, skin]);
+  }, [scene, skin, hairMap]);
 
   return <primitive object={cloned} />;
 }

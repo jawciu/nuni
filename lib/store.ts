@@ -71,7 +71,7 @@ export const useStore = create<State>((set) => ({
       const prints = s.prints.filter((p) => p.id !== id);
       return {
         prints,
-        // fall back to the most recent survivor rather than leaving the cloth bare
+        // fall back to the most recent survivor rather than leaving the garment bare
         activePrintId:
           s.activePrintId === id ? (prints.at(-1)?.id ?? null) : s.activePrintId,
       };

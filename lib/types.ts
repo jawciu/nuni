@@ -32,7 +32,7 @@ export type Params = {
   placement: Record<GarmentId, Placement>;
   repeat: Repeat;
   targets: GarmentId[]; // which garments carry the print
-  colours: Record<GarmentId, string>; // the cloth itself, before any print
+  colours: Record<GarmentId, string>; // the garment itself, before any print
 };
 
 /** A control the agent decided you needed. Materialises as a slider. */

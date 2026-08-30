@@ -51,7 +51,7 @@ export function ChatPanel() {
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [input]);
 
-  // the first time something lands on the cloth, say that this is a conversation and not a
+  // the first time something lands on the garment, say that this is a conversation and not a
   // one-shot, because nothing else on screen tells you that
   useEffect(() => {
     if (!hinted && store.prints.length > 0) setHinted(true);
@@ -120,7 +120,7 @@ export function ChatPanel() {
         label: (input.label as string) ?? "print",
         source: "generated",
       });
-      return { ok: true, note: "on the cloth already, it came back transparent" };
+      return { ok: true, note: "on the garment already, it came back transparent" };
     }
 
     if (name === "isolate_print") {
@@ -264,7 +264,7 @@ export function ChatPanel() {
         {!store.messages.length && (
           <div className="space-y-3 pt-1">
             <p className="text-[13px] leading-relaxed text-stone-500">
-              Say what you want on the cloth. Ask to play with something and the dial for it
+              Say what you want on the garment. Ask to play with something and the dial for it
               turns up here.
             </p>
             <div className="space-y-1.5 pt-1">
@@ -421,7 +421,7 @@ export function ChatPanel() {
             placeholder={
               store.prints.length
                 ? "ask for a change"
-                : "describe the print you want on the cloth"
+                : "describe the print you want on the garment"
             }
             className="block max-h-[140px] w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[13px] leading-relaxed text-stone-100 placeholder:text-stone-600 focus:outline-none"
           />
