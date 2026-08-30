@@ -1,7 +1,13 @@
 "use client";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, useGLTF, useProgress } from "@react-three/drei";
+import {
+  OrbitControls,
+  ContactShadows,
+  useGLTF,
+  useProgress,
+  useTexture,
+} from "@react-three/drei";
 import * as THREE from "three";
 import { Garment } from "./Garment";
 import { useStore } from "@/lib/store";
@@ -12,23 +18,34 @@ useGLTF.preload("/assets/trews.glb");
 
 function Body() {
   const { scene } = useGLTF("/assets/body.glb");
+  // the same skin she was picked in, makeup painted into the map. The mesh keeps its
+  // MakeHuman UVs through the OBJ and GLB round trip, so this lands without any fitting.
+  const skin = useTexture("/assets/skin.png");
+
   const cloned = useMemo(() => {
+    skin.flipY = false;
+    skin.colorSpace = THREE.SRGBColorSpace;
+    skin.anisotropy = 8;
+    skin.needsUpdate = true;
+
     const s = scene.clone(true);
     s.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       m.geometry.computeVertexNormals();
-      // desaturated and darker than the cloth, so the print stays the loudest thing on screen
       m.material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color("#b08a76"),
-        roughness: 0.72,
+        map: skin,
+        // skin is never shiny across the whole face, and a broad soft highlight reads far
+        // better than a wet one
+        roughness: 0.62,
         metalness: 0,
       });
       m.castShadow = true;
       m.receiveShadow = true;
     });
     return s;
-  }, [scene]);
+  }, [scene, skin]);
+
   return <primitive object={cloned} />;
 }
 

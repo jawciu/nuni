@@ -1,29 +1,23 @@
-# nuni
-
-Say what you want on the cloth, and it builds you the controls to put it there.
-
-nuni is a print studio for clothes. You talk to it, it makes or cuts out a print, drops it
-onto simulated cloth in 3D, and then hands you the exact dials you asked for. Not a panel of
-forty sliders. The two or three you said you wanted to play with.
 
 ---
 
 ## The problem space
 
-In fashionj print designers need to visualise how their ideas will look on the garments before production. For high end labels this process takes a lot of idea generation, option creation and ideas tweaking. 
+In fashion print designers need to visualise how their ideas will look on the garments before production. For high end labels this process takes a lot of idea generation, option creation and ideas tweaking. 
 For years this work has been done in Photoshop where designers upload images and manually edit and manouver them on a photograph of a model or sketch. 
 
 The process is extremply ineffient and lack the 3D aspect.
 
 Nuni is a new gen tool that blends 3D and gen AI to unlock a new flexible and speedy design process for the fashion print designers.
 
-The cloth is simulated, the print is painted into the
-material's albedo, and the lighting multiplies over it. Move the print and the folds move
-with it. It never reads as a decal.
+It allows the user to visualise their ideas on a 3D model, and quickly itearate on options. 
 
-The second idea is that the interface should not be fixed. When someone says "let me play
-with the scale", the right response is a scale slider, right now, with a sensible range.
-The agent decides which controls exist. That is the whole interaction model.
+# nuni
+
+Nuni is an textile idea generation platform. If comes with a 3D model where user can visualise their ideas on. The natural language chat allows them to explain their ideas. They can also attach images and refernce photos and explain how they want them to be used e.g. Use the rose in the photo buit make it look like it's made out of sequins and make it repeat. 
+
+After the initial promp has generated users idea they can ask for quick option generation or further tweaks. Usually chat interfaces that allowe users to tweak the images are only natural langauge which takes a lot of prompt - creation loops. Nuni changes that. Based on the prompt it generated sliders for the user so they can amned what they need in realtime. 
+
 
 ---
 

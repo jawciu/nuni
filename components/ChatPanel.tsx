@@ -28,7 +28,10 @@ export function ChatPanel() {
   const [history, setHistory] = useState<Turn[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
   const refB64 = useRef<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [hinted, setHinted] = useState(false);
 
   useEffect(() => {
     warmSandbox((step) => useStore.getState().setBusy(true, step)).then((s) => {
@@ -40,6 +43,19 @@ export function ChatPanel() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 1e9, behavior: "smooth" });
   }, [store.messages, store.controls]);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [input]);
+
+  // the first time something lands on the cloth, say that this is a conversation and not a
+  // one-shot, because nothing else on screen tells you that
+  useEffect(() => {
+    if (!hinted && store.prints.length > 0) setHinted(true);
+  }, [store.prints.length, hinted]);
 
   /** Runs one tool the model asked for and hands back what to tell it. */
   async function runTool(name: string, input: Record<string, unknown>) {
@@ -220,6 +236,16 @@ export function ChatPanel() {
     useStore.getState().setReference(`data:${f.type};base64,${b64}`);
   }
 
+  function clearReference() {
+    refB64.current = null;
+    useStore.getState().setReference(null);
+  }
+
+  function send() {
+    if (!input.trim() || store.busy) return;
+    turn(input.trim());
+  }
+
   return (
     <div className="flex h-full flex-col border-r border-white/8 bg-[#131110]">
       <header className="flex items-baseline justify-between px-5 pb-3 pt-4">
@@ -337,35 +363,115 @@ export function ChatPanel() {
 
       <Controls />
 
-      <form
-        onSubmit={(e) => {
+      {hinted && (
+        <p className="px-5 pb-2 text-[11px] leading-snug text-stone-600">
+          Keep going. Ask for a change and the dial for it turns up under the chat.
+        </p>
+      )}
+
+      <div
+        onDragOver={(e) => {
           e.preventDefault();
-          if (input.trim() && !store.busy) turn(input.trim());
+          setDragging(true);
         }}
-        className="flex items-center gap-3 border-t border-white/8 px-5 py-3.5"
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f?.type.startsWith("image/")) onFile(f);
+        }}
+        className="px-4 pb-4 pt-1"
       >
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-stone-600 transition hover:text-stone-300"
-          title="upload a reference photo to cut a motif out of"
+        <div
+          className={`rounded-lg border bg-[#1a1817] transition ${
+            dragging ? "border-rose-400/60 bg-rose-400/5" : "border-white/12 focus-within:border-white/30"
+          }`}
         >
-          photo
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
-        />
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="say what you want"
-          className="flex-1 bg-transparent text-[13px] text-stone-100 placeholder:text-stone-600 focus:outline-none"
-        />
-      </form>
+          {store.reference && (
+            <div className="flex items-center gap-2 px-3 pt-3">
+              <span
+                className="h-9 w-9 shrink-0 rounded border border-white/12 bg-cover bg-center"
+                style={{ backgroundImage: `url(${store.reference})` }}
+              />
+              <span className="min-w-0 flex-1 truncate text-[11px] text-stone-500">
+                reference attached, say what to cut out of it
+              </span>
+              <button
+                onClick={clearReference}
+                aria-label="remove the attached image"
+                className="shrink-0 text-[13px] leading-none text-stone-600 hover:text-stone-300"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          <textarea
+            ref={boxRef}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder={
+              store.prints.length
+                ? "ask for a change"
+                : "describe the print you want on the cloth"
+            }
+            className="block max-h-[140px] w-full resize-none bg-transparent px-3 pb-2 pt-3 text-[13px] leading-relaxed text-stone-100 placeholder:text-stone-600 focus:outline-none"
+          />
+
+          <div className="flex items-center justify-between px-2 pb-2">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              title="attach a photo of your own artwork to cut a motif out of"
+              className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-stone-500 transition hover:bg-white/5 hover:text-stone-200"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 01-7.78-7.78l8.49-8.49a3.67 3.67 0 015.18 5.18l-8.48 8.49a1.83 1.83 0 01-2.6-2.6l7.79-7.78"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              image
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+            />
+
+            <button
+              type="button"
+              onClick={send}
+              disabled={!input.trim() || store.busy}
+              aria-label="send"
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-900 transition disabled:bg-white/8 disabled:text-stone-600"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M12 19V5M5 12l7-7 7 7"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

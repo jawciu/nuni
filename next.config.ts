@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // cannot follow. Leaving it external keeps file uploads to the sandbox working.
   // CLAUDE.md here is the project journal, not a generated pointer
   agentRules: false,
+  // it parks itself on top of the attach button, and this gets demoed on localhost
+  devIndicators: false,
   serverExternalPackages: ["@daytonaio/sdk", "@daytona/api-client"],
 };
 
