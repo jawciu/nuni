@@ -125,6 +125,12 @@ export function ChatPanel() {
     return (await warming.current)?.id ?? useStore.getState().sandbox?.id ?? null;
   }
 
+  /** Python tracebacks are long and the panel is narrow, so show the line that names it. */
+  function firstLine(msg: string) {
+    const lines = msg.trim().split("\n").filter(Boolean);
+    return (lines[lines.length - 1] ?? msg).slice(0, 160);
+  }
+
   /** A slider moved, so run the same code again with the new numbers. Always against the
    *  print the transform was built from, never against its own last output. */
   async function rerunTransform() {
@@ -136,18 +142,41 @@ export function ChatPanel() {
     if (!id) return;
 
     const values = { ...st.params.transform };
-    ranWith.current = JSON.stringify(values);
+    const stamp = JSON.stringify(values);
     running.current = true;
     st.setBusy(true, `re-running ${t.label}`);
-    const r = await postTransform(id, src, t.code, values);
-    running.current = false;
-    useStore.getState().setBusy(false, null);
 
-    if (r.pngB64) {
-      useStore
-        .getState()
-        .updatePrint(t.outputPrintId, { url: `data:image/png;base64,${r.pngB64}` });
+    try {
+      const r = await postTransform(id, src, t.code, values);
+
+      if (r.pngB64) {
+        // only now is this value genuinely done. Marking it before the call meant a
+        // failure was remembered as a success, and dragging back to it did nothing.
+        ranWith.current = stamp;
+        useStore
+          .getState()
+          .updatePrint(t.outputPrintId, { url: `data:image/png;base64,${r.pngB64}` });
+      } else {
+        // the code the model wrote threw, or the sandbox could not be reached. Say so:
+        // a slider that moves and changes nothing, silently, is the worst of both.
+        const why = r.codeError ?? r.error ?? "the sandbox did not answer";
+        useStore.getState().push({
+          role: "assistant",
+          text: `That slider could not run. ${firstLine(why)}`,
+        });
+      }
+    } catch (e) {
+      useStore.getState().push({
+        role: "assistant",
+        text: `That slider could not run. ${firstLine(String(e))}`,
+      });
+    } finally {
+      // whatever happened, let go of the lock. Leaving it held killed the slider for the
+      // rest of the session, which is what Caroline hit.
+      running.current = false;
+      useStore.getState().setBusy(false, null);
     }
+
     // the slider may well have moved again while that was in the air
     const now = JSON.stringify(useStore.getState().params.transform);
     if (now !== ranWith.current) void rerunTransform();
