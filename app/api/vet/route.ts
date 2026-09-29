@@ -95,7 +95,9 @@ export async function POST(req: Request) {
     }
 
     const run = await sandbox.process.executeCommand(
-      `LIBGL_ALWAYS_SOFTWARE=1 python /opt/vet.py < ${jobPath}; rm -f ${jobPath}`,
+      // killed a little inside the call's own limit, so a stuck vet never outlives its request
+      // and squats on the one GPU box
+      `LIBGL_ALWAYS_SOFTWARE=1 timeout -s KILL 50 python /opt/vet.py < ${jobPath}; rm -f ${jobPath}`,
       undefined,
       undefined,
       60,

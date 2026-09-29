@@ -347,7 +347,8 @@ function ShaderGuard() {
       const log = ctx.getShaderInfoLog(fs) || ctx.getProgramInfoLog(program) || "";
       console.error("garment shader failed to compile", log, ctx.getShaderInfoLog(vs));
       const s = useStore.getState();
-      if (!s.live) return;
+      // only a program that carries the model's code is the model's fault
+      if (!s.live || !(ctx.getShaderSource(fs) ?? "").includes("nuniLive(")) return;
       const label = s.live.label;
       s.setLive(null);
       s.push({

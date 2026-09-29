@@ -59,6 +59,8 @@ FORBIDDEN = [
     (r"\b[uv][A-Z]\w*\b", "the garment's own uniforms and varyings are off limits"),
     (r"\b(diffuseColor|main)\b", "the garment's own variables are off limits"),
     (r"__", "no double underscores, they are reserved"),
+    (r"\b_\w*", "no names starting with an underscore"),
+    (r"(?i)\bwebgl_\w*", "names starting webgl_ are reserved by the browser"),
     # the garment's shader is built by three, which #defines PI, EPSILON, RECIPROCAL_PI and
     # friends. `float PI = 3.14;` would pass here and turn into `float 3.14 = 3.14;` there.
     (r"\b[A-Z][A-Z0-9_]*\b", "no all-caps names, three reserves them for its own macros. "
@@ -84,6 +86,10 @@ def check_shape(code: str, names: list[str]) -> tuple[list[str], dict]:
         problems.append(f"the body is {len(code)} characters, keep it under {MAX_CHARS}")
     if not code.isascii():
         problems.append("plain ASCII only")
+    # GLSL joins a line ending in a backslash onto the next, so `f\` then `or` compiles as a
+    # loop that every rule below would read as two harmless words. No backslashes, at all.
+    if "\\" in code:
+        problems.append("no backslashes: a line continuation would hide words from these checks")
     if "return" not in code:
         problems.append("the body must return a vec4: the colour, in sRGB, with alpha")
 
@@ -143,6 +149,13 @@ def check_shape(code: str, names: list[str]) -> tuple[list[str], dict]:
             f"keep it to {MAX_SAMPLES}"
         )
 
+    # a private array big enough to blow the driver's per-pixel memory compiles everywhere
+    # except the browser, so cap every literal inside brackets
+    for m in re.finditer(r"\[\s*(\d+)\s*\]", code):
+        if int(m.group(1)) > MAX_LOOP:
+            problems.append(f"arrays and indices stay under {MAX_LOOP + 1}")
+            break
+
     for n in names:
         if not re.search(rf"\bp_{n}\b", code):
             problems.append(f"the slider `{n}` is declared but `p_{n}` is never read")
@@ -156,14 +169,14 @@ def source(code: str, names: list[str], version: str) -> str:
     head += [f"uniform float p_{n};" for n in names]
     head += [
         "in vec2 vUv;",
-        "out vec4 fragColor;",
+        "out vec4 nuniFrag;",
         # the test textures are uploaded as raw sRGB bytes, so a plain read is already what
         # the browser's nuniSample hands back after it re-encodes the linear sample
         "vec4 nuniSample(vec2 uv) { return texture(uPrint, uv); }",
         "vec4 nuniLive(vec2 uv) {",
         code,
         "}",
-        "void main() { fragColor = nuniLive(vUv); }",
+        "void main() { nuniFrag = nuniLive(vUv); }",
     ]
     return "\n".join(head) + "\n"
 
@@ -343,6 +356,15 @@ def check_render(code: str, params: list[dict], real: np.ndarray | None) -> tupl
                 break
             if changed(lo, hi) > 0.002:
                 moved = True
+            # the ends are not enough: a body can do something different at one value in the
+            # middle, so walk the range and at least see that it stays finite everywhere
+            lo_v, hi_v = float(p["min"]), float(p["max"])
+            for t in (0.13, 0.29, 0.37, 0.5, 0.61, 0.77, 0.89):
+                mid, _ = r.render(prog, vao, img, {**defaults, p["name"]: lo_v + (hi_v - lo_v) * t})
+                if not np.isfinite(mid).all():
+                    problems.append(f"`{p['name']}` produces NaN part way along its range")
+                    break
+            if moved:
                 break
         if not moved:
             dead.append(p["name"])
@@ -357,11 +379,11 @@ def check_render(code: str, params: list[dict], real: np.ndarray | None) -> tupl
         problems.append("it leaves the print exactly as it was, at every setting")
 
     # cost, against a plain passthrough, on a print big enough for the timing to mean anything
-    big = np.tile(prints["gradient"], (4, 4, 1))
+    big = np.tile(prints["gradient"], (8, 8, 1))
     runs = []
     for pr, va in ((base_prog, base_vao), (prog, vao)):
         r.render(pr, va, big, defaults)  # first draw pays for the compile
-        runs.append(min(r.render(pr, va, big, defaults)[1] for _ in range(3)))
+        runs.append(float(np.median([r.render(pr, va, big, defaults)[1] for _ in range(5)])))
     cost = runs[1] / max(runs[0], 0.05)
     if cost > MAX_COST:
         problems.append(

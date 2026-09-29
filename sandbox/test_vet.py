@@ -93,6 +93,13 @@ BAD = [
     ("bad range", "return nuniSample(uv) * p_k;", [dict(name="k", label="k", min=1, max=0, step=0.1, default=0.5)], "params"),
     ("bad name", "return nuniSample(uv) * p_K;", [dict(name="K", label="k", min=0, max=1, step=0.1, default=0.5)], "params"),
     ("three macro collision", "float PI = 3.14159; return nuniSample(uv) * p_k * PI;", P1, "shape"),
+    ("continuation hides a for", "vec4 c = nuniSample(uv);\nf\\\nor (int i = 0; i < 100000; i++) { c.r += p_k; }\nreturn c;", P1, "shape"),
+    ("continuation hides discard", "vec4 c = nuniSample(uv);\nif (c.a < 0.5) disc\\\nard;\nreturn vec4(1.0 - c.rgb * p_k, c.a);", P1, "shape"),
+    ("hang at one mid value", "vec4 c = nuniSample(uv); float s = 0.0;\nf\\\nor (int i = 0; float(i) < (abs(p_k - 0.37) < 0.01 ? 1e9 : 1.0); i++) { s += sin(s + uv.x); }\nreturn vec4(p_k * (1.0 - c.rgb) + fract(s) * 0.001, c.a);", P1, "shape"),
+    ("reaches the harness output", "nuniFrag = vec4(0.0); vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * p_k, c.a);", P1, "shape"),
+    ("webgl reserved name", "float webgl_c = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * webgl_c, c.a);", P1, "shape"),
+    ("underscore name", "float _webgl_c = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * _webgl_c, c.a);", P1, "shape"),
+    ("huge private array", "float a[20000]; a[0] = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * a[0], c.a);", P1, "shape"),
     ("comment smuggling", "/* } vec4 evil() { */ return nuniSample(uv) * p_k; // }", P1, None),
 ]
 

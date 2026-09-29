@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useStore } from "@/lib/store";
+import { useStore, withLiveControls } from "@/lib/store";
 import { warmSandbox } from "@/lib/sandbox-client";
 import { runRestylePrint } from "@/lib/blend";
 import { runSaveOption } from "@/lib/options";
@@ -364,11 +364,18 @@ export function ChatPanel() {
         return { ok: false, error: "param names are lowercase letters, digits and _ only" };
       }
 
-      const sandboxId = await ensureSandbox();
-      s.setBusy(true, "vetting the shader in the sandbox");
-      const b64 = await urlToB64(src.url);
-      const r = await postVet(sandboxId, b64, code, params);
-      useStore.getState().setBusy(false, null);
+      let r: VetResult;
+      try {
+        const sandboxId = await ensureSandbox();
+        s.setBusy(true, "vetting the shader in the sandbox");
+        const b64 = await urlToB64(src.url);
+        r = await postVet(sandboxId, b64, code, params);
+      } catch (e) {
+        return { ok: false, error: `the vetter could not be reached: ${String(e)}` };
+      } finally {
+        // a network error must not leave the panel stuck on busy
+        useStore.getState().setBusy(false, null);
+      }
 
       if (r.error) return { ok: false, error: r.error };
       if (!r.ok || !r.code) {
@@ -386,16 +393,8 @@ export function ChatPanel() {
       // runs in the browser is character for character what was checked
       useStore.getState().setLive({ code: r.code, label, params });
       if (params.length) {
-        useStore.getState().addControls(
-          params.map((p) => ({
-            id: `live.${p.name}`,
-            label: p.label ?? p.name,
-            target: `live.${p.name}`,
-            min: p.min,
-            max: p.max,
-            step: p.step,
-          })),
-        );
+        const st = useStore.getState();
+        st.addControls(withLiveControls([], st.live));
       }
       return {
         ok: true,

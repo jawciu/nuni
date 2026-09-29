@@ -79,6 +79,22 @@ function liveControls(controls: ControlSpec[], l: LiveShader | null) {
   );
 }
 
+/** Every slider the shader declared, added where it is not already on screen. */
+export function withLiveControls(controls: ControlSpec[], l: LiveShader | null): ControlSpec[] {
+  const have = new Set(controls.map((c) => c.target));
+  const add = (l?.params ?? [])
+    .filter((p) => !have.has(`live.${p.name}`))
+    .map((p) => ({
+      id: `live.${p.name}`,
+      label: p.label ?? p.name,
+      target: `live.${p.name}`,
+      min: p.min,
+      max: p.max,
+      step: p.step,
+    }));
+  return [...controls, ...add];
+}
+
 export function readPath(obj: any, path: string): number {
   return path.split(".").reduce((a, k) => (a == null ? a : a[k]), obj);
 }
@@ -158,7 +174,8 @@ export const useStore = create<State>((set) => ({
         // older options predate live shaders and carry no live values
         params: { ...clone(o.params), live: clone(o.params.live ?? {}) },
         live: o.live ?? null,
-        controls: liveControls(s.controls, o.live ?? null),
+        // the kept shader's sliders come back with it, or it returns with nothing to drag
+        controls: withLiveControls(liveControls(s.controls, o.live ?? null), o.live ?? null),
         // a print deleted since the option was kept leaves the garment as it is rather than
         // stripping it bare
         activePrintId:
