@@ -92,6 +92,7 @@ export async function saveOption(name?: string): Promise<SavedOption | null> {
     name: (name ?? "").trim() || nextName(),
     thumb,
     printId: s.activePrintId,
+    live: s.live,
     // a copy, never the live object: the params are about to keep moving
     params: JSON.parse(JSON.stringify(s.params)),
     savedAt: Date.now(),

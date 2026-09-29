@@ -333,6 +333,36 @@ function FitToViewport() {
   return null;
 }
 
+/**
+ * The last line of defence for a vetted shader. The vetter compiles against the Khronos
+ * reference compiler, but every GPU driver has its own opinions, so if the garment program
+ * still fails here the shader comes off and the print goes back to itself, rather than the
+ * garment rendering black or not at all in front of an audience.
+ */
+function ShaderGuard() {
+  const { gl } = useThree();
+  useEffect(() => {
+    // three reads the hook off the renderer, so it has to be written onto it
+    const onShaderError: THREE.WebGLDebug["onShaderError"] = (ctx, program, vs, fs) => {
+      const log = ctx.getShaderInfoLog(fs) || ctx.getProgramInfoLog(program) || "";
+      console.error("garment shader failed to compile", log, ctx.getShaderInfoLog(vs));
+      const s = useStore.getState();
+      if (!s.live) return;
+      const label = s.live.label;
+      s.setLive(null);
+      s.push({
+        role: "assistant",
+        text: `${label} passed the sandbox but this browser would not compile it, so I took it off. ${log.split("\n").find(Boolean) ?? ""}`.trim(),
+      });
+    };
+    Object.assign(gl.debug, { onShaderError });
+    return () => {
+      Object.assign(gl.debug, { onShaderError: null });
+    };
+  }, [gl]);
+  return null;
+}
+
 export function Viewer() {
   const prints = useStore((s) => s.prints);
   const activeId = useStore((s) => s.activePrintId);
@@ -360,6 +390,7 @@ export function Viewer() {
         <Backdrop />
         <Rig />
         <FitToViewport />
+        <ShaderGuard />
         <Suspense fallback={null}>
           <group position={[0, -0.9, 0]}>
             <Figure />

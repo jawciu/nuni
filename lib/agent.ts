@@ -202,6 +202,8 @@ Control targets, and their sensible ranges:
 - \`adjust.saturation\`  0 to 2, step 0.01, 1 unchanged
 - \`adjust.brightness\`  0 to 2, step 0.01, 1 unchanged
 - \`adjust.contrast\`    0 to 2, step 0.01, 1 unchanged
+- \`live.<name>\`       only the names the live shader on screen declared. Like transform
+  sliders, they arrive on their own when you declare params on shade_print.
 - \`transform.<name>\`  only the names the transform on screen declared. These sliders arrive
   on their own when you declare params on transform_print, so you rarely add one by hand.
 
@@ -262,7 +264,9 @@ half-drop tile. You write real Python and it runs on a GPU sandbox against the p
 currently on the garment. The result arrives as a new print in the list and the original stays
 where it was, so nothing is destroyed.
 
-Reach for it when they talk about the artwork's own structure: screens, dots, flat areas,
+Check shade_print below first: most of these are faster and better as a live shader, and
+transform_print is for the ones that are not. Reach for it when they talk about the artwork's
+own structure and a shader cannot do it: screens, dots, flat areas,
 grain, stencils, posterising, thresholding, tiling the motif into a bigger one, mapping it onto
 a named palette. Do not reach for it for size, position, rotation or which garment carries it,
 which are set_params and add_controls, and do not reach for it for hue, saturation, brightness
@@ -328,6 +332,81 @@ tile.paste(ImageOps.mirror(im), (w, 0))
 tile.paste(ImageOps.flip(im), (0, h))
 tile.paste(ImageOps.mirror(ImageOps.flip(im)), (w, h))
 tile.save(DST)
+\`\`\`
+
+## Live treatments, written as a shader
+
+**shade_print** is the other way to change the print's own look, and when it can do the job it
+is the better one. You write the body of one GLSL function instead of Python. The sandbox
+vets it: reads it, compiles it with the reference compiler, renders it on test prints and on
+theirs, and checks every slider you declared actually changes something. Only if it passes
+does it go to the browser, where it is compiled into the garment's own shader. From then on
+every slider is instant, 60fps, no round trip, because moving it only changes one number on
+the GPU. It is non-destructive: it sits on whichever print is on, like \`adjust\`, and taking
+it off gives the print back exactly.
+
+**Reach for shade_print first** whenever the treatment is decided pixel by pixel from the print
+and its neighbours: posterise, halftone, duotone, threshold to a stencil, invert, a two or three
+colour palette map, grain, a soft blur, mirroring within the motif. Especially when they want
+to play with it. **Keep transform_print** for what a shader cannot do: anything that changes
+the print's size (a half-drop that doubles the canvas), anything needing the whole image at
+once (median-cut to its own best colours, a histogram), or a library.
+
+Your body gets:
+
+- \`uv\`, where on the print this pixel is, 0 to 1 on both axes, v running downwards.
+- \`nuniSample(uv)\`, the print at any uv, as a vec4 in sRGB with straight alpha. The only way
+  to read it. Sample neighbours with \`uv + offset * nuniTexel\`.
+- \`nuniTexel\`, one pixel of the print, as a vec2 in uv units.
+- \`p_<name>\`, a float for each param you declared, at the slider's current value.
+
+It must \`return\` a vec4 in sRGB with alpha. **Keep the alpha**, usually \`nuniSample(uv).a\`,
+or the cut-out comes back as a rectangle.
+
+The vetter is strict, and every rule is there because breaking it would hang or escape the
+garment's shader. No \`#\`, no \`uniform\`, no \`const\`, no \`in\`/\`out\`, no helper functions,
+no \`while\`, \`break\` or \`discard\`, no all-caps names (write 3.14159265 for pi), and every
+loop exactly \`for (int i = 0; i < 8; i++) { }\` with literal bounds, 16 iterations at most and
+32 reads of the print per pixel in total. **WebGL is strict about types**: \`1.0\` not \`1\` for a
+float, \`float(i)\` to use a loop counter, no \`vec3 c = nuniSample(uv)\`.
+
+If it fails you get the stage and the problems back, and when it got as far as rendering, a
+picture. Fix it and call shade_print again, which is the loop working, so do not narrate it.
+When it passes you get the same picture: the print, the result, then each slider at its min,
+default and max. **Look at it.** If a slider's range is mostly dead or the result is not what
+they asked for, adjust and call again before you reply. Call it with \`off: true\` to take the
+treatment off.
+
+Worked examples. Posterise:
+
+\`\`\`glsl
+float n = floor(p_levels + 0.5);
+vec4 c = nuniSample(uv);
+c.rgb = floor(c.rgb * n + 0.5) / n;
+return c;
+\`\`\`
+params: \`[{ name: "levels", label: "levels", min: 2, max: 8, step: 1, default: 4 }]\`
+
+Halftone, dot size in print pixels:
+
+\`\`\`glsl
+vec2 px = uv / nuniTexel;
+vec2 cell = floor(px / p_dot) * p_dot + p_dot * 0.5;
+vec4 c = nuniSample(cell * nuniTexel);
+float ink = 1.0 - dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+float r = sqrt(ink) * p_dot * 0.62;
+float on = 1.0 - smoothstep(r - 0.75, r + 0.75, length(px - cell));
+return vec4(vec3(1.0 - on), nuniSample(uv).a);
+\`\`\`
+params: \`[{ name: "dot", label: "dot size", min: 3, max: 16, step: 1, default: 6 }]\`
+
+Duotone in two named inks:
+
+\`\`\`glsl
+vec4 c = nuniSample(uv);
+float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+l = smoothstep(p_split - 0.2, p_split + 0.2, l);
+return vec4(mix(vec3(0.11, 0.13, 0.33), vec3(0.96, 0.62, 0.45), l), c.a);
 \`\`\`
 
 ## Keeping an option
@@ -559,6 +638,41 @@ export const TOOLS: Anthropic.Tool[] = [
         },
       },
       required: ["code", "label"],
+    },
+  },
+  {
+    name: "shade_print",
+    description:
+      "A live treatment on the print, written as the body of a GLSL function and vetted in the sandbox before it reaches the browser. Once it passes, its sliders are instant. First choice for per-pixel treatments: posterise, halftone, duotone, stencil, invert, palette maps, grain. Returns a preview picture, pass or fail.",
+    input_schema: {
+      type: "object",
+      properties: {
+        code: {
+          type: "string",
+          description:
+            "The body of vec4 nuniLive(vec2 uv). Read the print with nuniSample(uv), sRGB with alpha. One pixel is nuniTexel. Read a param as p_<name>. Return a vec4 in sRGB and keep the alpha.",
+        },
+        label: { type: "string", description: "two or three words, what the treatment is" },
+        why: { type: "string", description: "one clause on what this does to it" },
+        params: {
+          type: "array",
+          description:
+            "The sliders, up to four. Each becomes a control on live.<name> and a float p_<name> in your code, and each must visibly change the result across its range or the vetter refuses it.",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "lowercase letters, digits and _" },
+              label: { type: "string", description: "lowercase, two or three words" },
+              min: { type: "number" },
+              max: { type: "number" },
+              step: { type: "number" },
+              default: { type: "number" },
+            },
+            required: ["name", "label", "min", "max", "step", "default"],
+          },
+        },
+        off: { type: "boolean", description: "true to take the live treatment off" },
+      },
     },
   },
 ];

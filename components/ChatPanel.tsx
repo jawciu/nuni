@@ -10,6 +10,7 @@ import {
   ControlSpec,
   TransformParam,
   isControlTarget,
+  isLiveTarget,
 } from "@/lib/types";
 
 type Block =
@@ -52,6 +53,43 @@ function postTransform(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id, imageB64, code, params }),
   }).then((x) => x.json());
+}
+
+type VetResult = {
+  ok?: boolean;
+  stage?: string;
+  problems?: string[];
+  code?: string;
+  stats?: Record<string, number>;
+  preview_b64?: string;
+  error?: string;
+};
+
+function postVet(
+  id: string | null,
+  imageB64: string,
+  code: string,
+  params: TransformParam[],
+): Promise<VetResult> {
+  return fetch("/api/vet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, imageB64, code, params }),
+  }).then((x) => x.json());
+}
+
+/** A tool can hand the model a picture as well as words, so it can look at what it made. */
+const IMAGE = "__image";
+
+function toolContent(out: Record<string, unknown>) {
+  const img = out[IMAGE];
+  if (typeof img !== "string") return JSON.stringify(out);
+  const rest = { ...out };
+  delete rest[IMAGE];
+  return [
+    { type: "text", text: JSON.stringify(rest) },
+    { type: "image", source: { type: "base64", media_type: "image/png", data: img } },
+  ];
 }
 
 const OPENERS = [
@@ -223,8 +261,12 @@ export function ChatPanel() {
 
     if (name === "add_controls") {
       const asked = (input.controls ?? []) as ControlSpec[];
-      const good = asked.filter((c) => isControlTarget(c.target));
-      const bad = asked.filter((c) => !isControlTarget(c.target)).map((c) => c.target);
+      // a live slider is only real if the shader on screen declared it
+      const real = (t: string) =>
+        isControlTarget(t) &&
+        (!t.startsWith("live.") || !!s.live?.params.some((p) => `live.${p.name}` === t));
+      const good = asked.filter((c) => real(c.target));
+      const bad = asked.filter((c) => !real(c.target)).map((c) => c.target);
       if (good.length) s.addControls(good);
       if (bad.length) {
         // a slider bound to a path that does not exist would move and change nothing
@@ -300,6 +342,67 @@ export function ChatPanel() {
         note: input.why as string,
       });
       return { ok: true, ms: r.ms, size: r.size };
+    }
+
+    if (name === "shade_print") {
+      if (input.off) {
+        const was = s.live?.label;
+        s.setLive(null);
+        return { ok: true, off: true, was: was ?? null };
+      }
+      const src = s.prints.find((p) => p.id === s.activePrintId);
+      if (!src) {
+        return { ok: false, error: "there is no print on the garment to shade yet" };
+      }
+
+      const code = String(input.code ?? "");
+      const label = (input.label as string) ?? "live";
+      const params = ((input.params ?? []) as TransformParam[]).filter(
+        (p) => p && typeof p.name === "string" && isLiveTarget(`live.${p.name}`),
+      );
+      if (params.length !== ((input.params ?? []) as unknown[]).length) {
+        return { ok: false, error: "param names are lowercase letters, digits and _ only" };
+      }
+
+      const sandboxId = await ensureSandbox();
+      s.setBusy(true, "vetting the shader in the sandbox");
+      const b64 = await urlToB64(src.url);
+      const r = await postVet(sandboxId, b64, code, params);
+      useStore.getState().setBusy(false, null);
+
+      if (r.error) return { ok: false, error: r.error };
+      if (!r.ok || !r.code) {
+        // the loop working, same as a traceback from transform_print
+        return {
+          ok: false,
+          stage: r.stage,
+          problems: r.problems,
+          hint: "the vetter stopped it. fix those and call shade_print again.",
+          ...(r.preview_b64 ? { [IMAGE]: r.preview_b64 } : {}),
+        };
+      }
+
+      // the code the vetter returned, not the code the model sent: comments stripped, so what
+      // runs in the browser is character for character what was checked
+      useStore.getState().setLive({ code: r.code, label, params });
+      if (params.length) {
+        useStore.getState().addControls(
+          params.map((p) => ({
+            id: `live.${p.name}`,
+            label: p.label ?? p.name,
+            target: `live.${p.name}`,
+            min: p.min,
+            max: p.max,
+            step: p.step,
+          })),
+        );
+      }
+      return {
+        ok: true,
+        stats: r.stats,
+        note: "live on the garment. the picture is the print, the result, then each slider at min, default and max.",
+        ...(r.preview_b64 ? { [IMAGE]: r.preview_b64 } : {}),
+      };
     }
 
     if (name === "transform_print") {
@@ -398,6 +501,9 @@ export function ChatPanel() {
         colours: st.params.colours,
         hasReference: !!refB64.current,
         sandboxReady: !!st.sandbox?.id,
+        liveShader: st.live
+          ? { label: st.live.label, params: st.live.params.map((p) => p.name) }
+          : null,
       };
 
       const r = await fetch("/api/chat", {
@@ -439,7 +545,11 @@ export function ChatPanel() {
           actions: [...(useStore.getState().messages.at(-1)?.actions ?? []), c.name],
         });
         const out = await runTool(c.name, c.input);
-        results.push({ type: "tool_result", tool_use_id: c.id, content: JSON.stringify(out) });
+        results.push({
+          type: "tool_result",
+          tool_use_id: c.id,
+          content: toolContent(out as Record<string, unknown>),
+        });
       }
 
       convo = [

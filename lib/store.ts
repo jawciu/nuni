@@ -5,6 +5,7 @@ import {
   ChatMsg,
   ControlSpec,
   DEFAULT_PARAMS,
+  LiveShader,
   Params,
   Print,
   SavedOption,
@@ -23,6 +24,8 @@ type State = {
   /** The model-written transform currently driving the sliders, or null when the print is
    *  whatever came out of generation or isolation. */
   transform: ActiveTransform | null;
+  /** The vetted shader on the print, or null for the print as it is. */
+  live: LiveShader | null;
   /** Looks she kept, oldest first, so the row reads left to right the way a lay-down does. */
   options: SavedOption[];
   /** Which kept look is on screen, or null the moment anything is changed away from it. */
@@ -42,6 +45,7 @@ type State = {
   setReference: (url: string | null) => void;
   setSandbox: (s: { id: string; url: string } | null) => void;
   setTransform: (t: ActiveTransform | null) => void;
+  setLive: (l: LiveShader | null) => void;
   saveOption: (o: SavedOption) => void;
   removeOption: (id: string) => void;
   restoreOption: (id: string) => void;
@@ -66,6 +70,15 @@ function writePath<T>(obj: T, path: string, value: unknown): T {
   return out;
 }
 
+/** Same as a transform: a slider left over from the last shader would drive nothing. */
+function liveControls(controls: ControlSpec[], l: LiveShader | null) {
+  return controls.filter(
+    (c) =>
+      !c.target.startsWith("live.") ||
+      (l ? l.params.some((p) => `live.${p.name}` === c.target) : false),
+  );
+}
+
 export function readPath(obj: any, path: string): number {
   return path.split(".").reduce((a, k) => (a == null ? a : a[k]), obj);
 }
@@ -81,6 +94,7 @@ export const useStore = create<State>((set) => ({
   reference: null,
   sandbox: null,
   transform: null,
+  live: null,
   options: [],
   activeOptionId: null,
 
@@ -141,7 +155,10 @@ export const useStore = create<State>((set) => ({
       return {
         // one write, so the print and the numbers land on the same render and the garment
         // never flashes the new placement carrying the old print
-        params: clone(o.params),
+        // older options predate live shaders and carry no live values
+        params: { ...clone(o.params), live: clone(o.params.live ?? {}) },
+        live: o.live ?? null,
+        controls: liveControls(s.controls, o.live ?? null),
         // a print deleted since the option was kept leaves the garment as it is rather than
         // stripping it bare
         activePrintId:
@@ -171,6 +188,18 @@ export const useStore = create<State>((set) => ({
           !c.target.startsWith("transform.") ||
           (t ? c.target.slice(10) in t.params : false),
       ),
+    })),
+  setLive: (l) =>
+    set((s) => ({
+      live: l,
+      // seed every slider at its default so the first frame the shader draws is the one the
+      // vetter looked at
+      params: {
+        ...s.params,
+        live: l ? Object.fromEntries(l.params.map((p) => [p.name, p.default])) : {},
+      },
+      controls: liveControls(s.controls, l),
+      activeOptionId: null,
     })),
 }));
 
