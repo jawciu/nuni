@@ -273,6 +273,7 @@ function usePrintTexture(url: string | null) {
     const loader = new THREE.TextureLoader();
     loader.setCrossOrigin("anonymous");
     let dead = false;
+    let loaded: THREE.Texture | null = null;
     loader.load(url, (t) => {
       if (dead) return;
       // this UV convention wants flipY off, and without SRGB the print washes out
@@ -281,10 +282,14 @@ function usePrintTexture(url: string | null) {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.anisotropy = 8;
       t.needsUpdate = true;
+      loaded = t;
       setTex(t);
     });
     return () => {
       dead = true;
+      // every transform re-run lands as a new url, so without this each old print stays
+      // parked on the gpu for the rest of the session
+      loaded?.dispose();
     };
   }, [url]);
   return tex;
@@ -329,7 +334,6 @@ function FitToViewport() {
 }
 
 export function Viewer() {
-  const params = useStore((s) => s.params);
   const prints = useStore((s) => s.prints);
   const activeId = useStore((s) => s.activePrintId);
   const active = prints.find((p) => p.id === activeId) ?? null;
@@ -359,8 +363,8 @@ export function Viewer() {
         <Suspense fallback={null}>
           <group position={[0, -0.9, 0]}>
             <Figure />
-            <Garment id="tee" url="/assets/tee.glb" params={params} printTex={tex} lift={0.007} />
-            <Garment id="trews" url="/assets/trews.glb" params={params} printTex={tex} />
+            <Garment id="tee" url="/assets/tee.glb" printTex={tex} lift={0.007} />
+            <Garment id="trews" url="/assets/trews.glb" printTex={tex} />
             <ContactShadows
               position={[0, 0.002, 0]}
               opacity={0.72}

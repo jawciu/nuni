@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { GarmentId, Params } from "@/lib/types";
+import { useStore } from "@/lib/store";
+import { GarmentId } from "@/lib/types";
 
 /**
  * Placement lives in GARMENT space, never UV space.
@@ -177,16 +178,17 @@ const FRAG_BODY = /* glsl */ `
 export function Garment({
   id,
   url,
-  params,
   printTex,
   lift = 0,
 }: {
   id: GarmentId;
   url: string;
-  params: Params;
   printTex: THREE.Texture | null;
   lift?: number;
 }) {
+  // read here rather than passed down, so a slider re-renders the two garments and not the
+  // whole scene above them
+  const params = useStore((s) => s.params);
   const { scene } = useGLTF(url);
   // owned by us and reused across recompiles, so nothing is orphaned if three rebuilds
   // the program

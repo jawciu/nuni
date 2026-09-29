@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useStore } from "@/lib/store";
 import { warmSandbox } from "@/lib/sandbox-client";
 import { runRestylePrint } from "@/lib/blend";
@@ -61,7 +62,21 @@ const OPENERS = [
 ];
 
 export function ChatPanel() {
-  const store = useStore();
+  // only the fields the panel draws. A bare useStore() re-rendered the whole transcript on
+  // every tick of every slider, because a slider rewrites params dozens of times a second
+  const store = useStore(
+    useShallow((s) => ({
+      messages: s.messages,
+      controls: s.controls,
+      prints: s.prints,
+      activePrintId: s.activePrintId,
+      busy: s.busy,
+      status: s.status,
+      reference: s.reference,
+      setActivePrint: s.setActivePrint,
+      removePrint: s.removePrint,
+    })),
+  );
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<Turn[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -107,7 +122,8 @@ export function ChatPanel() {
   }, [store.prints.length, hinted]);
 
   // a transform slider is a round trip to a gpu, so wait for the hand to settle first
-  const transformValues = JSON.stringify(store.params.transform);
+  // a string compares by value, so this only wakes the panel when a transform number moves
+  const transformValues = useStore((s) => JSON.stringify(s.params.transform));
   useEffect(() => {
     if (!useStore.getState().transform || !transformSrc.current) return;
     if (ranWith.current === transformValues) return;
