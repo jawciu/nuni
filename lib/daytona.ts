@@ -16,10 +16,11 @@ set -euo pipefail
 export HF_HOME=/opt/hf
 mkdir -p /opt/hf
 echo "STEP apt"
-apt-get update -qq && apt-get install -y -qq git libgl1 libglib2.0-0 >/dev/null
+apt-get update -qq && apt-get install -y -qq git libgl1 libglib2.0-0 \
+  glslang-tools libegl1 libegl-mesa0 libgl1-mesa-dri >/dev/null
 echo "STEP pip"
 pip install -q --no-cache-dir pillow numpy torchvision transformers timm einops kornia \
-  huggingface_hub accelerate fastapi "uvicorn[standard]" pydantic opencv-python-headless
+  huggingface_hub accelerate fastapi "uvicorn[standard]" pydantic opencv-python-headless moderngl
 echo "STEP weights"
 python - <<'PY'
 from transformers import AutoModelForImageSegmentation as M

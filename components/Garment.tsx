@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { GarmentId, Params } from "@/lib/types";
+import { useStore } from "@/lib/store";
+import { GarmentId, LiveShader } from "@/lib/types";
 
 /**
  * Placement lives in GARMENT space, never UV space.
@@ -119,6 +120,50 @@ const FRAG_HEAD = /* glsl */ `
   }
 `;
 
+/**
+ * Where a vetted shader lands. Every read of the print on the garment goes through nuniInk,
+ * so a treatment the model wrote applies to placed and repeat alike, and to whichever print
+ * is on. With none on, nuniInk is the plain texture read it always was.
+ *
+ * The model's body works in sRGB, the values a designer sees, because that is where
+ * posterise levels and thresholds mean what they say. The print is decoded to linear the
+ * moment it is sampled, so nuniSample encodes it back, and nuniInk decodes the answer.
+ * The output is clamped before decoding: the vetter checks for NaN, not for range.
+ */
+function liveHead(live: LiveShader | null) {
+  if (!live) return `vec4 nuniInk(vec2 uv) { return texture2D(uPrint, uv); }`;
+  return /* glsl */ `
+  uniform vec2 nuniTexel;
+  ${live.params.map((p) => `uniform float p_${p.name};`).join("\n  ")}
+  vec4 nuniSample(vec2 uv) {
+    vec4 c = texture2D(uPrint, uv);
+    return vec4(nuniToSrgb(c.rgb), c.a);
+  }
+  vec4 nuniLive(vec2 uv) {
+${live.code}
+  }
+  vec4 nuniInk(vec2 uv) {
+    vec4 c = clamp(nuniLive(uv), 0.0, 1.0);
+    return vec4(nuniToLinear(c.rgb), c.a);
+  }
+`;
+}
+
+/** The vetted shader's sliders are uniforms of their own. Whichever runs first, the compile
+ *  or the effect that writes the values, makes them, and both hold the same object after, so
+ *  a look restored at non-default values draws at those values from its first frame. */
+function liveUniforms(u: Record<string, THREE.IUniform>, live: LiveShader | null) {
+  u.nuniTexel ??= { value: new THREE.Vector2(1, 1) };
+  for (const p of live?.params ?? []) u[`p_${p.name}`] ??= { value: p.default };
+}
+
+/** A short stable tag for the program cache, so two shaders never share a compiled program. */
+function hash(s: string) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 const FRAG_BODY = /* glsl */ `
   // the garment colour rides our own uniform rather than the material's. three caches the
   // built-in diffuse uniform against the material version, so setting material.color after
@@ -139,7 +184,7 @@ const FRAG_BODY = /* glsl */ `
         vec2 uvp = vec2(d.x / uSize, d.y / (uSize / uAspect)) + 0.5;
         uvp.y = 1.0 - uvp.y;
         if (uvp.x > 0.0 && uvp.x < 1.0 && uvp.y > 0.0 && uvp.y < 1.0) {
-          ink = texture2D(uPrint, uvp);
+          ink = nuniInk(uvp);
         }
       }
     } else {
@@ -158,9 +203,9 @@ const FRAG_BODY = /* glsl */ `
       w = w * w * w * w;
       w /= max(w.x + w.y + w.z, 1e-5);
 
-      ink = texture2D(uPrint, fract(qx)) * w.x
-          + texture2D(uPrint, fract(qy)) * w.y
-          + texture2D(uPrint, fract(qz)) * w.z;
+      ink = nuniInk(fract(qx)) * w.x
+          + nuniInk(fract(qy)) * w.y
+          + nuniInk(fract(qz)) * w.z;
     }
 
     // live colour adjustment, on the sampled print only. The garment's own colour and the
@@ -177,16 +222,18 @@ const FRAG_BODY = /* glsl */ `
 export function Garment({
   id,
   url,
-  params,
   printTex,
   lift = 0,
 }: {
   id: GarmentId;
   url: string;
-  params: Params;
   printTex: THREE.Texture | null;
   lift?: number;
 }) {
+  // read here rather than passed down, so a slider re-renders the two garments and not the
+  // whole scene above them
+  const params = useStore((s) => s.params);
+  const live = useStore((s) => s.live);
   const { scene } = useGLTF(url);
   // owned by us and reused across recompiles, so nothing is orphaned if three rebuilds
   // the program
@@ -251,18 +298,23 @@ export function Garment({
       uniforms.current.uBoxMin.value = box.min.clone();
       uniforms.current.uBoxSize.value = box.getSize(new THREE.Vector3());
       uniforms.current.uRadius.value = radius;
+      liveUniforms(uniforms.current, live);
       Object.assign(shader.uniforms, uniforms.current);
 
       shader.vertexShader = shader.vertexShader
         .replace("#include <common>", `#include <common>\n${VERT_HEAD}`)
         .replace("#include <begin_vertex>", `#include <begin_vertex>\n${VERT_BODY}`);
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", `#include <common>\n${FRAG_HEAD}`)
+        .replace("#include <common>", `#include <common>\n${FRAG_HEAD}\n${liveHead(live)}`)
         .replace("#include <color_fragment>", `#include <color_fragment>\n${FRAG_BODY}`);
     };
-    m.customProgramCacheKey = () => `nuni-${id}`;
+    const key = `nuni-${id}-${live ? hash(live.code + live.params.map((p) => p.name).join()) : "plain"}`;
+    m.customProgramCacheKey = () => key;
     return m;
-  }, [box, id, radius]);
+  }, [box, id, radius, live]);
+
+  // a new shader is a new material, so let go of the old program rather than leave it on the gpu
+  useEffect(() => () => material.dispose(), [material]);
 
   useEffect(() => {
     const u = uniforms.current;
@@ -288,8 +340,16 @@ export function Garment({
     if (printTex?.image) {
       const im = printTex.image as { width: number; height: number };
       u.uAspect.value = im.width / im.height || 1;
+      liveUniforms(u, live);
+      (u.nuniTexel.value as THREE.Vector2).set(1 / im.width, 1 / im.height);
     }
-  }, [params, printTex, id]);
+    // a slider on the vetted shader is one float, set here at 60fps with no round trip
+    liveUniforms(u, live);
+    for (const p of live?.params ?? []) {
+      const v = params.live?.[p.name];
+      u[`p_${p.name}`].value = typeof v === "number" ? v : p.default;
+    }
+  }, [params, printTex, id, live, material]);
 
   return (
     <mesh geometry={geometry} material={material} castShadow receiveShadow scale={1 + lift} />

@@ -50,6 +50,9 @@ export type Params = {
   /** Live values for whatever the current print transform exposed. The agent names these
    *  itself, so the shape is open: a slider binds to `transform.<name>`. */
   transform: Record<string, number>;
+  /** Live values for the vetted shader, if one is on. Uniforms, so a slider costs nothing:
+   *  a slider binds to `live.<name>` and the shader reads it as `p_<name>`. */
+  live: Record<string, number>;
 };
 
 /** A parameter the model's transform code exposed, read inside that code as P["name"]. */
@@ -73,6 +76,16 @@ export type ActiveTransform = {
   params: Record<string, number>;
 };
 
+/** A treatment the model wrote as a shader rather than as Python. It passed the vetter in the
+ *  sandbox, so it is compiled straight into the garment's own shader and every slider on it
+ *  is a uniform: 60fps, no round trip. `code` is the body of `vec4 nuniLive(vec2 uv)` exactly
+ *  as the vetter approved it, comments stripped, so what runs is what was checked. */
+export type LiveShader = {
+  code: string;
+  label: string;
+  params: TransformParam[];
+};
+
 /** A look worth keeping.
  *
  *  A print designer does not arrive at one answer, she builds a range: the same motif placed
@@ -88,6 +101,8 @@ export type SavedOption = {
   /** the garment as it looked, centre-cropped to portrait and downsampled to a few kb */
   thumb: string;
   printId: string | null;
+  /** the vetted shader that was on the print, since its slider values alone mean nothing */
+  live?: LiveShader | null;
   params: Params;
   savedAt: number;
 };
@@ -127,6 +142,7 @@ export const DEFAULT_PARAMS: Params = {
   targets: ["tee"],
   colours: { tee: "#eae5dd", trews: "#3d4350" },
   transform: {},
+  live: {},
 };
 
 /** Every path a control is allowed to bind to. An invented target would produce a slider
@@ -151,12 +167,22 @@ export const CONTROL_TARGETS = [
   "adjust.contrast",
 ] as const;
 
-export type ControlTarget = (typeof CONTROL_TARGETS)[number] | `transform.${string}`;
+export type ControlTarget =
+  | (typeof CONTROL_TARGETS)[number]
+  | `transform.${string}`
+  | `live.${string}`;
 
 /** Transform params are the one open-ended family: the model names them when it writes the
  *  code, so they cannot be listed ahead of time. The name still has to be a plain
  *  identifier, so a path cannot reach anywhere else in the params object. */
 const TRANSFORM_TARGET = /^transform\.[a-z][a-z0-9_]*$/i;
+
+/** Same rule for the live shader's sliders, which it reads as `p_<name>` uniforms. */
+const LIVE_TARGET = /^live\.[a-z][a-z0-9_]{0,23}$/;
+
+export function isLiveTarget(t: string): t is `live.${string}` {
+  return LIVE_TARGET.test(t);
+}
 
 export function isTransformTarget(t: string): t is `transform.${string}` {
   return TRANSFORM_TARGET.test(t);
@@ -178,6 +204,7 @@ export function isControlTarget(t: string): t is ControlTarget {
   return (
     (CONTROL_TARGETS as readonly string[]).includes(t) ||
     isTransformTarget(t) ||
+    isLiveTarget(t) ||
     isChoiceTarget(t)
   );
 }

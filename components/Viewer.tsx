@@ -273,6 +273,7 @@ function usePrintTexture(url: string | null) {
     const loader = new THREE.TextureLoader();
     loader.setCrossOrigin("anonymous");
     let dead = false;
+    let loaded: THREE.Texture | null = null;
     loader.load(url, (t) => {
       if (dead) return;
       // this UV convention wants flipY off, and without SRGB the print washes out
@@ -281,10 +282,14 @@ function usePrintTexture(url: string | null) {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.anisotropy = 8;
       t.needsUpdate = true;
+      loaded = t;
       setTex(t);
     });
     return () => {
       dead = true;
+      // every transform re-run lands as a new url, so without this each old print stays
+      // parked on the gpu for the rest of the session
+      loaded?.dispose();
     };
   }, [url]);
   return tex;
@@ -328,8 +333,38 @@ function FitToViewport() {
   return null;
 }
 
+/**
+ * The last line of defence for a vetted shader. The vetter compiles against the Khronos
+ * reference compiler, but every GPU driver has its own opinions, so if the garment program
+ * still fails here the shader comes off and the print goes back to itself, rather than the
+ * garment rendering black or not at all in front of an audience.
+ */
+function ShaderGuard() {
+  const { gl } = useThree();
+  useEffect(() => {
+    // three reads the hook off the renderer, so it has to be written onto it
+    const onShaderError: THREE.WebGLDebug["onShaderError"] = (ctx, program, vs, fs) => {
+      const log = ctx.getShaderInfoLog(fs) || ctx.getProgramInfoLog(program) || "";
+      console.error("garment shader failed to compile", log, ctx.getShaderInfoLog(vs));
+      const s = useStore.getState();
+      // only a program that carries the model's code is the model's fault
+      if (!s.live || !(ctx.getShaderSource(fs) ?? "").includes("nuniLive(")) return;
+      const label = s.live.label;
+      s.setLive(null);
+      s.push({
+        role: "assistant",
+        text: `${label} passed the sandbox but this browser would not compile it, so I took it off. ${log.split("\n").find(Boolean) ?? ""}`.trim(),
+      });
+    };
+    Object.assign(gl.debug, { onShaderError });
+    return () => {
+      Object.assign(gl.debug, { onShaderError: null });
+    };
+  }, [gl]);
+  return null;
+}
+
 export function Viewer() {
-  const params = useStore((s) => s.params);
   const prints = useStore((s) => s.prints);
   const activeId = useStore((s) => s.activePrintId);
   const active = prints.find((p) => p.id === activeId) ?? null;
@@ -356,11 +391,12 @@ export function Viewer() {
         <Backdrop />
         <Rig />
         <FitToViewport />
+        <ShaderGuard />
         <Suspense fallback={null}>
           <group position={[0, -0.9, 0]}>
             <Figure />
-            <Garment id="tee" url="/assets/tee.glb" params={params} printTex={tex} lift={0.007} />
-            <Garment id="trews" url="/assets/trews.glb" params={params} printTex={tex} />
+            <Garment id="tee" url="/assets/tee.glb" printTex={tex} lift={0.007} />
+            <Garment id="trews" url="/assets/trews.glb" printTex={tex} />
             <ContactShadows
               position={[0, 0.002, 0]}
               opacity={0.72}
