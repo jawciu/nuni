@@ -100,6 +100,17 @@ BAD = [
     ("webgl reserved name", "float webgl_c = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * webgl_c, c.a);", P1, "shape"),
     ("underscore name", "float _webgl_c = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * _webgl_c, c.a);", P1, "shape"),
     ("huge private array", "float a[20000]; a[0] = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * a[0], c.a);", P1, "shape"),
+    ("pure maths nested to 65536", "vec4 c = nuniSample(uv); float s = 0.0; for (int i = 0; i < 16; i++) { for (int j = 0; j < 16; j++) { for (int k = 0; k < 16; k++) { for (int l = 0; l < 16; l++) { s += sin(s + p_k); } } } } return vec4(fract(s) * c.rgb, c.a);", P1, "shape"),
+    ("hex array size", "float a[0x5000]; a[0] = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * a[0], c.a);", P1, "shape"),
+    ("unsigned array size", "float a[20000u]; a[0] = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * a[0], c.a);", P1, "shape"),
+    ("product array size", "float a[160*125]; a[0] = p_k; vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * a[0], c.a);", P1, "shape"),
+    ("array constructor", "float a[3] = float[20000](p_k); vec4 c = nuniSample(uv); return vec4(1.0 - c.rgb * a[0], c.a);", P1, "shape"),
+    ("form feed", "vec4 c = nuniSample(uv);\freturn vec4(1.0 - c.rgb * p_k, c.a);", P1, "shape"),
+    ("NUL", "vec4 c = nuniSample(uv);\x00return vec4(1.0 - c.rgb * p_k, c.a);", P1, "shape"),
+    ("lone CR", "vec4 c = nuniSample(uv);\rreturn vec4(1.0 - c.rgb * p_k, c.a);", P1, "shape"),
+    ("line comment opens nothing", "// /*\nvec4 c = nuniSample(uv);\nreturn vec4(1.0 - c.rgb * p_k, c.a);\n// */", P1, None),
+    ("small array is fine", "float w[3]; w[0] = 0.25; w[1] = 0.5; w[2] = 0.25; vec4 c = nuniSample(uv) * w[1] * 2.0; return vec4(1.0 - c.rgb * p_k, c.a);", P1, None),
+    ("CRLF is fine", "vec4 c = nuniSample(uv);\r\nreturn vec4(1.0 - c.rgb * p_k, c.a);", P1, None),
     ("comment smuggling", "/* } vec4 evil() { */ return nuniSample(uv) * p_k; // }", P1, None),
 ]
 

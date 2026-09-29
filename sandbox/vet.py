@@ -41,6 +41,7 @@ from PIL import Image
 MAX_CHARS = 4000
 MAX_LOOP = 16  # iterations of any single loop
 MAX_SAMPLES = 32  # texture reads per fragment, loops multiplied out
+MAX_ITERATIONS = 256  # innermost loop bodies per fragment, nesting multiplied out
 MAX_PARAMS = 4
 MAX_COST = 60.0  # render time against a plain passthrough of the same print
 
@@ -75,8 +76,9 @@ LOOP_HEADER = re.compile(
 
 
 def strip_comments(src: str) -> str:
-    src = re.sub(r"/\*.*?\*/", " ", src, flags=re.S)
-    return re.sub(r"//[^\n]*", "", src)
+    # one pass, left to right, the way the compiler reads it: `// /*` is a line comment and
+    # `/* // */` is a block. Two passes would disagree with it on both.
+    return re.sub(r"//[^\n]*|/\*.*?(?:\*/|$)", " ", src.replace("\r\n", "\n"), flags=re.S)
 
 
 def check_shape(code: str, names: list[str]) -> tuple[list[str], dict]:
@@ -86,6 +88,10 @@ def check_shape(code: str, names: list[str]) -> tuple[list[str], dict]:
         problems.append(f"the body is {len(code)} characters, keep it under {MAX_CHARS}")
     if not code.isascii():
         problems.append("plain ASCII only")
+    # form feeds, vertical tabs, a lone CR, NUL: nothing a shader needs, and each is a place
+    # where the compiler and these regexes might disagree about where a word ends
+    elif re.search(r"[^\x20-\x7e\n\t]", code):
+        problems.append("printable characters, spaces, tabs and newlines only")
     # GLSL joins a line ending in a backslash onto the next, so `f\` then `or` compiles as a
     # loop that every rule below would read as two harmless words. No backslashes, at all.
     if "\\" in code:
@@ -135,6 +141,19 @@ def check_shape(code: str, names: list[str]) -> tuple[list[str], dict]:
             problems.append(f"the loop counter `{var}` is changed inside its own loop")
         loops.append((m.start(), i, max(n, 1)))
 
+    # nesting multiplies: four loops of 16 is 65,536 turns a pixel with not one texture read,
+    # which is a stall the sample count below would never see
+    for s0, e0, n0 in loops:
+        turns = n0
+        for s1, e1, n1 in loops:
+            if (s1, e1) != (s0, e0) and s1 < s0 < e1:
+                turns *= n1
+        if turns > MAX_ITERATIONS:
+            problems.append(
+                f"loops nested to {turns} turns a pixel, keep it to {MAX_ITERATIONS} all told"
+            )
+            break
+
     # texture reads, each multiplied by every loop it sits inside
     samples = 0
     for m in re.finditer(r"\bnuniSample\s*\(", code):
@@ -151,6 +170,14 @@ def check_shape(code: str, names: list[str]) -> tuple[list[str], dict]:
 
     # a private array big enough to blow the driver's per-pixel memory compiles everywhere
     # except the browser, so cap every literal inside brackets
+    # and an array's size has to be that literal: 0x5000, 20000u and 160*125 are all the
+    # same too-big array to the browser
+    types = r"(?:float|int|uint|bool|[biu]?vec[234]|mat[234](?:x[234])?)"
+    for m in re.finditer(rf"\b{types}\s*(?:\w+\s*)?\[([^\]]*)\]", code):
+        size = m.group(1).strip()
+        if not size.isdigit() or int(size) > MAX_LOOP:
+            problems.append(f"an array's size is a plain number up to {MAX_LOOP}")
+            break
     for m in re.finditer(r"\[\s*(\d+)\s*\]", code):
         if int(m.group(1)) > MAX_LOOP:
             problems.append(f"arrays and indices stay under {MAX_LOOP + 1}")
@@ -328,6 +355,21 @@ def check_render(code: str, params: list[dict], real: np.ndarray | None) -> tupl
         return [f"compiled for WebGL but would not link: {str(e)[-300:]}"], {}, None
     base_prog, base_vao = r.program("return nuniSample(uv);", [])
 
+    # cost first, and alone: it is the cheapest verdict to reach and the one a heavy body
+    # would otherwise spend the whole time limit getting to
+    big = np.tile(test_prints()["gradient"], (8, 8, 1))
+    runs = []
+    for pr, va in ((base_prog, base_vao), (prog, vao)):
+        r.render(pr, va, big, defaults)  # first draw pays for the compile
+        runs.append(float(np.median([r.render(pr, va, big, defaults)[1] for _ in range(5)])))
+    cost = runs[1] / max(runs[0], 0.05)
+    if cost > MAX_COST:
+        return [
+            f"it is {cost:.0f} times the cost of drawing the print plainly, keep it under "
+            f"{MAX_COST:.0f}: fewer texture reads or smaller loops"
+        ], {"cost": round(cost, 1)}, None
+
+
     prints = test_prints()
     if real is not None:
         prints = {"your print": real, **prints}
@@ -377,19 +419,6 @@ def check_render(code: str, params: list[dict], real: np.ndarray | None) -> tupl
         problems.append("at its default values it leaves the print exactly as it was")
     elif not did_something and not any(p["name"] not in dead for p in params):
         problems.append("it leaves the print exactly as it was, at every setting")
-
-    # cost, against a plain passthrough, on a print big enough for the timing to mean anything
-    big = np.tile(prints["gradient"], (8, 8, 1))
-    runs = []
-    for pr, va in ((base_prog, base_vao), (prog, vao)):
-        r.render(pr, va, big, defaults)  # first draw pays for the compile
-        runs.append(float(np.median([r.render(pr, va, big, defaults)[1] for _ in range(5)])))
-    cost = runs[1] / max(runs[0], 0.05)
-    if cost > MAX_COST:
-        problems.append(
-            f"it is {cost:.0f} times the cost of drawing the print plainly, keep it under "
-            f"{MAX_COST:.0f}: fewer texture reads or smaller loops"
-        )
 
     # the picture the agent gets to look at: the print, then each slider at min, default, max
     show = prints.get("your print", prints["motif"])
